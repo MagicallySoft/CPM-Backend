@@ -1,0 +1,11 @@
+# Node.js
+node_modules/
+
+# Environment files
+.env
+
+dist/googleSheet/*.json
+src/googleSheet/*.json
+
+dist/googleSheet
+src/googleSheet
