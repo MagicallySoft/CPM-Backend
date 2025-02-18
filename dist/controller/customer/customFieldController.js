@@ -19,11 +19,12 @@ const addCustomField = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
     var _a;
     try {
         const { fieldName, fieldType, isRequired, options, isMultiSelect } = req.body;
+        // console.log({ fieldName, fieldType, isRequired, options, isMultiSelect });
         if (!fieldName || !fieldType) {
             return (0, responseHandler_1.sendErrorResponse)(res, 400, "Field name and type are required!");
         }
         const newCustomField = new customFieldModel_1.default({
-            adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId, // Admin adding the custom field
+            adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id, // Admin adding the custom field
             fieldName,
             fieldType,
             isRequired,

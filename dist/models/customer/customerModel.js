@@ -33,60 +33,64 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+// models/Customer.ts
 const mongoose_1 = __importStar(require("mongoose"));
-const productSchema = new mongoose_1.Schema({
-    productName: { type: String, required: true },
-    purchaseDate: { type: Date, required: true },
-    renewalDate: { type: Date },
-    details: { type: String },
-    reference: { type: Boolean, default: false },
-    referenceDetail: {
-        referenceId: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: false },
-        referenceName: { type: String, required: false },
-        referenceContact: { type: String, required: false },
-        remark: { type: String, required: false },
-    },
-}, { _id: false });
-const customerSchema = new mongoose_1.Schema({
+const encryption_1 = require("../../utils/encryption");
+const CustomerSchema = new mongoose_1.Schema({
     adminId: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
-    companyName: { type: String, required: true },
-    contactPerson: { type: String, required: true },
-    mobileNumber: {
-        type: String,
-        required: true,
-        unique: true,
-        match: /^[0-9]{10}$/,
-    },
-    email: {
-        type: String,
-        required: [true, "Email is required"],
-        unique: true,
-        match: [
-            /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-            "Please enter a valid email address",
-        ],
-    },
-    tallySerialNo: { type: String, required: true, match: [/^[0-9]{9}$/, "Tally Serial No. is must be 9 digit"], },
-    prime: { type: Boolean, default: false },
-    blacklisted: { type: Boolean, default: false },
-    remark: { type: String },
-    products: { type: [productSchema], default: [] },
-    dynamicFields: {
-        type: Map,
-        of: mongoose_1.Schema.Types.Mixed,
-        default: () => new Map(), // Ensures it is always initialized
-    },
+    keyId: { type: mongoose_1.Schema.Types.ObjectId, required: false },
+    encryptedData: { type: String, required: true },
+    mobileNumberIndex: { type: String, required: true, index: true },
+    contactPersonIndex: { type: String, required: true, index: true },
+    companyNameIndex: { type: String, required: true, index: true },
+    emailIndex: { type: String, required: true, index: true },
+    tallySerialNoIndex: { type: String, required: true, index: true },
+    nextRenewalDate: { type: Date, index: true },
 }, { timestamps: true });
-// Compound index for product searches
-customerSchema.index({ "products.renewalDate": 1, "products.productName": 1, "products.referenceDetail.referenceId": 1 });
-// Full-text search support
-customerSchema.index({
-    companyName: "text",
-    contactPerson: "text",
-    mobileNumber: "text",
-    email: "text",
-}, { default_language: "english" });
-// Index for dynamic fields if needed
-customerSchema.index({ "dynamicFields.someField": 1 });
-const Customer = mongoose_1.default.model("Customer", customerSchema);
+// Virtual field "data" handles encryption on set and decryption on get.
+CustomerSchema.virtual("data")
+    .get(function () {
+    try {
+        return JSON.parse((0, encryption_1.decryptData)(this.encryptedData));
+    }
+    catch (error) {
+        console.error("Decryption error:", error);
+        throw new Error("Failed to decrypt customer data.");
+    }
+})
+    .set(function (value) {
+    // Encrypt the full customer data
+    this.encryptedData = (0, encryption_1.encryptData)(JSON.stringify(value));
+    // Compute blind indexes for searchable fields
+    this.mobileNumberIndex = (0, encryption_1.computeBlindIndex)(value.mobileNumber);
+    this.contactPersonIndex = (0, encryption_1.computeBlindIndex)(value.contactPerson);
+    this.companyNameIndex = (0, encryption_1.computeBlindIndex)(value.companyName);
+    this.emailIndex = (0, encryption_1.computeBlindIndex)(value.email);
+    this.tallySerialNoIndex = (0, encryption_1.computeBlindIndex)(value.tallySerialNo);
+});
+// Pre-save hook to recalc blind indexes and compute next renewal date
+CustomerSchema.pre("save", function (next) {
+    try {
+        const data = JSON.parse((0, encryption_1.decryptData)(this.encryptedData));
+        this.mobileNumberIndex = (0, encryption_1.computeBlindIndex)(data.mobileNumber);
+        this.contactPersonIndex = (0, encryption_1.computeBlindIndex)(data.contactPerson);
+        this.companyNameIndex = (0, encryption_1.computeBlindIndex)(data.companyName);
+        this.emailIndex = (0, encryption_1.computeBlindIndex)(data.email);
+        this.tallySerialNoIndex = (0, encryption_1.computeBlindIndex)(data.tallySerialNo);
+        // If products have a renewalDate, set the nextRenewalDate for faster queries.
+        if (data.products && Array.isArray(data.products)) {
+            const renewalDates = data.products
+                .filter((p) => p.renewalDate)
+                .map((p) => new Date(p.renewalDate).getTime());
+            if (renewalDates.length > 0) {
+                this.nextRenewalDate = new Date(Math.min(...renewalDates));
+            }
+        }
+        next();
+    }
+    catch (error) {
+        next(error);
+    }
+});
+const Customer = mongoose_1.default.model("Customer", CustomerSchema);
 exports.default = Customer;

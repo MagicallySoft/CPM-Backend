@@ -12,13 +12,14 @@ export const addCustomField = async (
 ) => {
   try {
   const { fieldName, fieldType, isRequired, options, isMultiSelect } = req.body;
-
+  // console.log({ fieldName, fieldType, isRequired, options, isMultiSelect });
+  
   if (!fieldName || !fieldType) {
     return sendErrorResponse(res, 400, "Field name and type are required!");
   }
 
   const newCustomField = new AdminCustomField({
-    adminId: req.user?.userId, // Admin adding the custom field
+    adminId: req.user?.id, // Admin adding the custom field
     fieldName,
     fieldType,
     isRequired,

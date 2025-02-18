@@ -30,6 +30,8 @@
     "google-auth-library": "^9.15.1",
     "google-spreadsheet": "^4.1.4",
     "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.13.0",
+    "mongodb-client-encryption": "^6.2.0",
     "mongoose": "^8.10.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.10.0"

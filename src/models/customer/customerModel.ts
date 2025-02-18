@@ -1,72 +1,97 @@
+// models/Customer.ts
 import mongoose, { Schema, Document } from "mongoose";
-import { IProduct, ICustomer } from "../../utils/interfaces";
+import { encryptData, decryptData, computeBlindIndex } from "../../utils/encryption";
 
-const productSchema = new Schema<IProduct>(
-  {
-    productName: { type: String, required: true },
-    purchaseDate: { type: Date, required: true },
-    renewalDate: { type: Date },
-    details: { type: String },
-    reference: { type: Boolean, default: false },
-    referenceDetail: {
-      referenceId: { type: Schema.Types.ObjectId, ref: "User", required: false },
-      referenceName: { type: String, required: false },
-      referenceContact: { type: String, required: false },
-      remark: { type: String, required: false },
-    },
-  },
-  { _id: false }
-);
+/**
+ * Customer data interface.
+ * Note: dynamicFields and products can hold additional dynamic data.
+ */
+export interface ICustomerData {
+  companyName: string;
+  contactPerson: string;
+  mobileNumber: string;
+  email: string;
+  tallySerialNo: string;
+  prime: boolean;
+  blacklisted: boolean;
+  remark?: string;
+  products?: Array<{ [key: string]: any }>;
+  dynamicFields?: { [key: string]: any };
+}
 
-const customerSchema: Schema<ICustomer> = new Schema(
+export interface ICustomer extends Document {
+  adminId: mongoose.Types.ObjectId;
+  keyId?: mongoose.Types.ObjectId;
+  encryptedData: string;
+  mobileNumberIndex: string;
+  contactPersonIndex: string;
+  companyNameIndex: string;
+  emailIndex: string;
+  tallySerialNoIndex: string;
+  nextRenewalDate?: Date;
+  data: ICustomerData;
+}
+
+const CustomerSchema: Schema<ICustomer> = new Schema(
   {
     adminId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    companyName: { type: String, required: true },
-    contactPerson: { type: String, required: true },
-    mobileNumber: {
-      type: String,
-      required: true,
-      unique: true,
-      match: /^[0-9]{10}$/,
-    },
-    email: {
-      type: String,
-      required: [true, "Email is required"],
-      unique: true,
-      match: [
-        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        "Please enter a valid email address",
-      ],
-    },
-    tallySerialNo: { type: String, required: true, match:[/^[0-9]{9}$/,"Tally Serial No. is must be 9 digit"], },
-    prime: { type: Boolean, default: false },
-    blacklisted: { type: Boolean, default: false },
-    remark: { type: String },
-    products: { type: [productSchema], default: [] },
-    dynamicFields: { 
-      type: Map, 
-      of: Schema.Types.Mixed, 
-      default: () => new Map(), // Ensures it is always initialized
-    },
+    keyId: { type: Schema.Types.ObjectId, required: false },
+    encryptedData: { type: String, required: true },
+    mobileNumberIndex: { type: String, required: true, index: true },
+    contactPersonIndex: { type: String, required: true, index: true },
+    companyNameIndex: { type: String, required: true, index: true },
+    emailIndex: { type: String, required: true, index: true },
+    tallySerialNoIndex: { type: String, required: true, index: true },
+    nextRenewalDate: { type: Date, index: true },
   },
   { timestamps: true }
 );
 
-// Compound index for product searches
-customerSchema.index({ "products.renewalDate": 1, "products.productName": 1, "products.referenceDetail.referenceId": 1 }); 
+// Virtual field "data" handles encryption on set and decryption on get.
+CustomerSchema.virtual("data")
+  .get(function (this: ICustomer) {
+    try {
+      return JSON.parse(decryptData(this.encryptedData));
+    } catch (error) {
+      console.error("Decryption error:", error);
+      throw new Error("Failed to decrypt customer data.");
+    }
+  })
+  .set(function (this: ICustomer, value: ICustomerData) {
+    // Encrypt the full customer data
+    this.encryptedData = encryptData(JSON.stringify(value));
+    // Compute blind indexes for searchable fields
+    this.mobileNumberIndex = computeBlindIndex(value.mobileNumber);
+    this.contactPersonIndex = computeBlindIndex(value.contactPerson);
+    this.companyNameIndex = computeBlindIndex(value.companyName);
+    this.emailIndex = computeBlindIndex(value.email);
+    this.tallySerialNoIndex = computeBlindIndex(value.tallySerialNo);
+  });
 
-// Full-text search support
-customerSchema.index({
-  companyName: "text",
-  contactPerson: "text",
-  mobileNumber: "text",
-  email: "text",
-}, { default_language: "english" });
+// Pre-save hook to recalc blind indexes and compute next renewal date
+CustomerSchema.pre<ICustomer>("save", function (next) {
+  try {
+    const data: ICustomerData = JSON.parse(decryptData(this.encryptedData));
+    this.mobileNumberIndex = computeBlindIndex(data.mobileNumber);
+    this.contactPersonIndex = computeBlindIndex(data.contactPerson);
+    this.companyNameIndex = computeBlindIndex(data.companyName);
+    this.emailIndex = computeBlindIndex(data.email);
+    this.tallySerialNoIndex = computeBlindIndex(data.tallySerialNo);
 
-// Index for dynamic fields if needed
-customerSchema.index({ "dynamicFields.someField": 1 });
+    // If products have a renewalDate, set the nextRenewalDate for faster queries.
+    if (data.products && Array.isArray(data.products)) {
+      const renewalDates = data.products
+        .filter((p: any) => p.renewalDate)
+        .map((p: any) => new Date(p.renewalDate).getTime());
+      if (renewalDates.length > 0) {
+        this.nextRenewalDate = new Date(Math.min(...renewalDates));
+      }
+    }
+    next();
+  } catch (error: any) {
+    next(error);
+  }
+});
 
-
-
-const Customer = mongoose.model<ICustomer>("Customer", customerSchema);
+const Customer = mongoose.model<ICustomer>("Customer", CustomerSchema);
 export default Customer;
