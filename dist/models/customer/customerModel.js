@@ -59,9 +59,7 @@ CustomerSchema.virtual("data")
     }
 })
     .set(function (value) {
-    // Encrypt the full customer data
     this.encryptedData = (0, encryption_1.encryptData)(JSON.stringify(value));
-    // Compute blind indexes for searchable fields
     this.mobileNumberIndex = (0, encryption_1.computeBlindIndex)(value.mobileNumber);
     this.contactPersonIndex = (0, encryption_1.computeBlindIndex)(value.contactPerson);
     this.companyNameIndex = (0, encryption_1.computeBlindIndex)(value.companyName);

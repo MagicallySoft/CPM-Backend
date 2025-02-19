@@ -7,11 +7,13 @@ const express_1 = __importDefault(require("express"));
 const customerController_1 = require("../../controller/customer/customerController");
 const customFieldController_1 = require("../../controller/customer/customFieldController");
 const authMiddleware_1 = require("../../middlewares/authMiddleware");
-// import { addCustomerInSheeet } from "../../googleSheet/addCustomer";
+const multer_1 = __importDefault(require("multer"));
+const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
 const router = express_1.default.Router();
 const asyncHandler = (fn) => (req, res, next) => {
     return Promise.resolve(fn(req, res, next)).catch(next);
 };
+router.post("/importcustomers", upload.single("file"), authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customerController_1.importCustomers));
 router.post("/customfield", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customFieldController_1.addCustomField));
 router.get("/customfield", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customFieldController_1.getCustomFields));
 router.put("/customfield/:id", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customFieldController_1.updateCustomField));

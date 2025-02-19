@@ -12,7 +12,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getRenewalReminderList = exports.deleteCustomer = exports.updateCustomer = exports.searchCustomer = exports.addCustomer = void 0;
+exports.importCustomers = exports.getRenewalReminderList = exports.deleteCustomer = exports.updateCustomer = exports.searchCustomer = exports.addCustomer = void 0;
+const csvtojson_1 = __importDefault(require("csvtojson"));
+const xlsx_1 = __importDefault(require("xlsx"));
 const customerModel_1 = __importDefault(require("../../models/customer/customerModel"));
 const encryption_1 = require("../../utils/encryption");
 const responseHandler_1 = require("../../utils/responseHandler");
@@ -200,3 +202,68 @@ const getRenewalReminderList = (req, res, next) => __awaiter(void 0, void 0, voi
     }
 });
 exports.getRenewalReminderList = getRenewalReminderList;
+/**
+ * Import customers from CSV or Excel file.
+ */
+const importCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+        const fileBuffer = req.file.buffer;
+        const fileName = req.file.originalname;
+        let customerRecords = [];
+        // Determine file type based on the extension.
+        if (fileName.endsWith(".csv")) {
+            // Convert buffer to string and parse CSV.
+            const csvString = fileBuffer.toString("utf-8");
+            customerRecords = yield (0, csvtojson_1.default)().fromString(csvString);
+        }
+        else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+            // Read Excel file and convert the first worksheet to JSON.
+            const workbook = xlsx_1.default.read(fileBuffer, { type: "buffer" });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            customerRecords = xlsx_1.default.utils.sheet_to_json(worksheet);
+        }
+        else {
+            return res.status(400).json({ error: "Unsupported file format" });
+        }
+        // Map each record to the expected ICustomerData format.
+        // Adjust field names if your CSV/Excel headers differ.
+        const customersToInsert = customerRecords.map((record) => {
+            var _a;
+            const customerData = {
+                companyName: record.companyName || record.CompanyName,
+                contactPerson: record.contactPerson || record.ContactPerson,
+                mobileNumber: record.mobileNumber || record.MobileNumber,
+                email: record.email || record.Email,
+                tallySerialNo: record.tallySerialNo || record.TallySerialNo,
+                // Convert string values to booleans if needed.
+                prime: record.prime === "true" || record.prime === true || false,
+                blacklisted: record.blacklisted === "true" ||
+                    record.blacklisted === true ||
+                    false,
+                remark: record.remark || record.Remark,
+                // If there are any dynamic fields or products, you can add them here.
+                // products: record.products ? JSON.parse(record.products) : undefined,
+                // dynamicFields: record.dynamicFields ? JSON.parse(record.dynamicFields) : undefined,
+            };
+            return new customerModel_1.default({
+                // Assuming you have the authenticated admin user in req.user.
+                adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id,
+                data: customerData,
+            });
+        });
+        // Bulk insert customers into the database.
+        yield customerModel_1.default.insertMany(customersToInsert);
+        res.json({
+            message: `${customersToInsert.length} customers imported successfully`,
+        });
+    }
+    catch (error) {
+        console.error("Error importing customers:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+exports.importCustomers = importCustomers;

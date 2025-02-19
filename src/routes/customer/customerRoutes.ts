@@ -1,9 +1,11 @@
 import express from "express";
 import { Request, Response, NextFunction } from "express";
-import { addCustomer, searchCustomer, deleteCustomer, updateCustomer, getRenewalReminderList } from "../../controller/customer/customerController";
+import { addCustomer, searchCustomer, deleteCustomer, updateCustomer, getRenewalReminderList, importCustomers } from "../../controller/customer/customerController";
 import { addCustomField, getCustomFields, updateCustomField, deleteCustomField } from "../../controller/customer/customFieldController";
 import { authenticateUser, authorizeRoles } from "../../middlewares/authMiddleware";
-// import { addCustomerInSheeet } from "../../googleSheet/addCustomer";
+import multer from "multer";
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const router = express.Router();
 
@@ -14,6 +16,8 @@ const asyncHandler = (fn: any) => (
 ): Promise<void> => {
   return Promise.resolve(fn(req, res, next)).catch(next);
 }
+
+router.post("/importcustomers", upload.single("file"), authenticateUser, authorizeRoles("admin", "superadmin"),asyncHandler(importCustomers))
 
 router.post("/customfield", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(addCustomField));
 

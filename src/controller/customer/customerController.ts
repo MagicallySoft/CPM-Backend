@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from "express";
+import csv from "csvtojson";
+import XLSX from "xlsx";
 import Customer, { ICustomerData } from "../../models/customer/customerModel";
 import { computeBlindIndex } from "../../utils/encryption";
 import { sendSuccessResponse, sendErrorResponse } from "../../utils/responseHandler";
+import { MulterRequest } from "../../utils/interfaces";
 
 /**
  * Add a new customer.
@@ -193,5 +196,73 @@ export const getRenewalReminderList = async (req: Request, res: Response, next: 
   } catch (error: any) {
     console.error("Error fetching renewal reminders:", error);
     return sendErrorResponse(res, 500, "Internal Server Error", { error: error.message });
+  }
+};
+
+/**
+ * Import customers from CSV or Excel file.
+ */
+export const importCustomers = async (req: MulterRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const fileBuffer = req.file.buffer;
+    const fileName = req.file.originalname;
+    let customerRecords: ICustomerData[] = [];
+
+    // Determine file type based on the extension.
+    if (fileName.endsWith(".csv")) {
+      // Convert buffer to string and parse CSV.
+      const csvString = fileBuffer.toString("utf-8");
+      customerRecords = await csv().fromString(csvString);
+    } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+      // Read Excel file and convert the first worksheet to JSON.
+      const workbook = XLSX.read(fileBuffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      customerRecords = XLSX.utils.sheet_to_json(worksheet);
+    } else {
+      return res.status(400).json({ error: "Unsupported file format" });
+    }
+
+    // Map each record to the expected ICustomerData format.
+    // Adjust field names if your CSV/Excel headers differ.
+    const customersToInsert = customerRecords.map((record: any) => {
+      const customerData: ICustomerData = {
+        companyName: record.companyName || record.CompanyName,
+        contactPerson: record.contactPerson || record.ContactPerson,
+        mobileNumber: record.mobileNumber || record.MobileNumber,
+        email: record.email || record.Email,
+        tallySerialNo: record.tallySerialNo || record.TallySerialNo,
+        // Convert string values to booleans if needed.
+        prime: record.prime === "true" || record.prime === true || false,
+        blacklisted:
+          record.blacklisted === "true" ||
+          record.blacklisted === true ||
+          false,
+        remark: record.remark || record.Remark,
+        // If there are any dynamic fields or products, you can add them here.
+        // products: record.products ? JSON.parse(record.products) : undefined,
+        // dynamicFields: record.dynamicFields ? JSON.parse(record.dynamicFields) : undefined,
+      };
+
+      return new Customer({
+        // Assuming you have the authenticated admin user in req.user.
+        adminId: req.user?.id,
+        data: customerData,
+      });
+    });
+
+    // Bulk insert customers into the database.
+    await Customer.insertMany(customersToInsert);
+
+    res.json({
+      message: `${customersToInsert.length} customers imported successfully`,
+    });
+  } catch (error) {
+    console.error("Error importing customers:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };

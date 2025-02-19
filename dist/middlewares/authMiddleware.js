@@ -37,6 +37,7 @@ const authorizeRoles = (...roles) => {
             (0, responseHandler_1.sendErrorResponse)(res, 403, "User authentication required.");
             return;
         }
+        // console.log(req.user);
         if (!roles.includes(req.user.role)) {
             (0, responseHandler_1.sendErrorResponse)(res, 403, "You do not have permission to access this resource.");
             return;

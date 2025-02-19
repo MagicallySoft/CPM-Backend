@@ -1,6 +1,13 @@
 // interfaces.ts
 import mongoose, { Schema, Document } from "mongoose";
 
+import { Request } from "express";
+
+export interface MulterRequest extends Request {
+  file?: Express.Multer.File;
+}
+
+
 // 1. IUser Interface for the User Model
 export interface IUser extends Document {
   designation: string;

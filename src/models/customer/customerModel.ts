@@ -1,6 +1,10 @@
 // models/Customer.ts
 import mongoose, { Schema, Document } from "mongoose";
-import { encryptData, decryptData, computeBlindIndex } from "../../utils/encryption";
+import {
+  encryptData,
+  decryptData,
+  computeBlindIndex,
+} from "../../utils/encryption";
 
 /**
  * Customer data interface.
@@ -58,9 +62,7 @@ CustomerSchema.virtual("data")
     }
   })
   .set(function (this: ICustomer, value: ICustomerData) {
-    // Encrypt the full customer data
     this.encryptedData = encryptData(JSON.stringify(value));
-    // Compute blind indexes for searchable fields
     this.mobileNumberIndex = computeBlindIndex(value.mobileNumber);
     this.contactPersonIndex = computeBlindIndex(value.contactPerson);
     this.companyNameIndex = computeBlindIndex(value.companyName);
