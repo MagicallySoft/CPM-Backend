@@ -47,7 +47,7 @@ export const getCustomFields = async (
 ) => {
   try {
     const customFields = await AdminCustomField.find({
-      adminId: req.user?.userId,
+      adminId: req.user?.id,
     });
 
     return sendSuccessResponse(
@@ -84,7 +84,7 @@ export const updateCustomField = async (
     }
 
     const updatedField = await AdminCustomField.findOneAndUpdate(
-      { _id: id, adminId: req.user?.userId }, // Ensure only admin's fields are updated
+      { _id: id, adminId: req.user?.id }, // Ensure only admin's fields are updated
       updateData,
       { new: true, runValidators: true }
     );
@@ -110,7 +110,7 @@ export const deleteCustomField = async (
   try {
     const deletedField = await AdminCustomField.findOneAndDelete({
       _id: id,
-      adminId: req.user?.userId, // Ensure admin can only delete their own fields
+      adminId: req.user?.id, // Ensure admin can only delete their own fields
     });
 
     if (!deletedField) {

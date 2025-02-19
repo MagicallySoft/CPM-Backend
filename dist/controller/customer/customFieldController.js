@@ -44,7 +44,7 @@ const getCustomFields = (req, res, next) => __awaiter(void 0, void 0, void 0, fu
     var _a;
     try {
         const customFields = yield customFieldModel_1.default.find({
-            adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId,
+            adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id,
         });
         return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Custom fields fetched successfully", customFields);
     }
@@ -69,7 +69,7 @@ const updateCustomField = (req, res, next) => __awaiter(void 0, void 0, void 0, 
         if (fieldType === "select") {
             updateData.options = options;
         }
-        const updatedField = yield customFieldModel_1.default.findOneAndUpdate({ _id: id, adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId }, // Ensure only admin's fields are updated
+        const updatedField = yield customFieldModel_1.default.findOneAndUpdate({ _id: id, adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id }, // Ensure only admin's fields are updated
         updateData, { new: true, runValidators: true });
         if (!updatedField) {
             return (0, responseHandler_1.sendErrorResponse)(res, 404, "Custom field not found or unauthorized.");
@@ -88,7 +88,7 @@ const deleteCustomField = (req, res, next) => __awaiter(void 0, void 0, void 0, 
     try {
         const deletedField = yield customFieldModel_1.default.findOneAndDelete({
             _id: id,
-            adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId, // Ensure admin can only delete their own fields
+            adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id, // Ensure admin can only delete their own fields
         });
         if (!deletedField) {
             return (0, responseHandler_1.sendErrorResponse)(res, 404, "Custom field not found or unauthorized");
