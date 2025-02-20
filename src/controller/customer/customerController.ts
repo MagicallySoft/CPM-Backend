@@ -39,7 +39,9 @@ export const addCustomer = async (req: Request, res: Response, next: NextFunctio
  */
 export const searchCustomer = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const adminId = req.user?.id;
+    const adminId = req.user?.role === "admin" ? req.user.id : req.user?.adminId;
+    // console.log(adminId);
+    
     const { companyName, mobileNumber, email, tallySerialNo } = req.query;
     const query: any = { adminId };
 
@@ -143,7 +145,7 @@ export const deleteCustomer = async (req: Request, res: Response, next: NextFunc
  */
 export const getRenewalReminderList = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const adminId = req.user?.id;
+    const adminId = req.user?.role === "admin" ? req.user.id : req.user?.adminId;
     const { reminderType = "thisMonth", startDate, endDate } = req.query;
     
     let start: Date, end: Date;
@@ -181,9 +183,9 @@ export const getRenewalReminderList = async (req: Request, res: Response, next: 
     
     // Use the Mongoose model so the virtual getter decrypts the data.
     const customers = await Customer.find(query);
-
+    // console.log(customers)
     if (!customers || customers.length === 0) {
-      return sendErrorResponse(res, 404, "No customers found for renewal reminder!");
+      return sendErrorResponse(res, 200, "No customers found for renewal reminder!");
     }
 
     // Decrypt each customer's data for the response.

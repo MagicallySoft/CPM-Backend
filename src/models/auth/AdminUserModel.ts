@@ -9,6 +9,7 @@ export interface IAdminUser extends Document {
   role: "superadmin" | "admin";
   Subscription?: "active" | "expired" | "cancelled";
   lastLogin?: Date;
+  IsLogin?: boolean;
   mfaSecret?: string;
   loginAttempts: number;
   lockUntil?: Date;
@@ -34,6 +35,7 @@ const AdminUserSchema: Schema = new Schema(
       default: "active",
     },
     lastLogin: { type: Date, default: null },
+    IsLogin: { type: Boolean, default: false },
     mfaSecret: { type: String, default: null },
     loginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date, default: null },

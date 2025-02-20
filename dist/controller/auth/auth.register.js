@@ -111,7 +111,7 @@ exports.registerAdmin = registerAdmin;
 const registerStaff = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { username, email, password, registrationCode } = req.body;
-        console.log({ username, email, password, registrationCode });
+        // console.log({ username, email, password, registrationCode });
         // Validate required fields
         if (!username || !email || !password || !registrationCode) {
             return (0, responseHandler_1.sendErrorResponse)(res, 400, "Missing required fields", {

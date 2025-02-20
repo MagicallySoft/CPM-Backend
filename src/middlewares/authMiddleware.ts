@@ -23,7 +23,8 @@ export const authenticateUser = (req: Request, res: Response, next: NextFunction
 
     req.user = {
       id: decoded.id,
-      role: decoded.role
+      role: decoded.role,
+      adminId: decoded.adminId
     } as IUser;
 
     next();

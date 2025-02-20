@@ -14,7 +14,7 @@ export const assignTask = async (req: Request, res: Response, next: NextFunction
     const newTask = new Task({
       title,
       description,
-      assignedBy: req.user?.userId,
+      assignedBy: req.user?.id,
       assignedTo,
       deadline,
       status: "Pending",

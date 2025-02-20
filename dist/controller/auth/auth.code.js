@@ -62,6 +62,7 @@ const createRegistrationCode = (req, res, next) => __awaiter(void 0, void 0, voi
             designation: assignedToRole === "employee" ? designation : undefined,
             expiresAt: expiresAt,
         });
+        // console.log(registrationCode);
         yield registrationCode.save();
         return (0, responseHandler_1.sendSuccessResponse)(res, 201, `${assignedToRole} registration code created successfully.`, { code, assignedToRole });
     }

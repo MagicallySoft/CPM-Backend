@@ -63,6 +63,7 @@ const AdminUserSchema = new mongoose_1.Schema({
         default: "active",
     },
     lastLogin: { type: Date, default: null },
+    IsLogin: { type: Boolean, default: false },
     mfaSecret: { type: String, default: null },
     loginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date, default: null },

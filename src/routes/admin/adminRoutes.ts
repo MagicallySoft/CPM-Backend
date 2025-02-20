@@ -14,7 +14,7 @@ const asyncHandler = (fn: any) => (
 }
 //change 
 
-router.get("/users", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(getUsersByAdmin));
+router.get("/users", authenticateUser, authorizeRoles("admin", "superadmin", "employee"), asyncHandler(getUsersByAdmin));
 router.delete('/users/:id', authenticateUser, authorizeRoles("superadmin"), asyncHandler(deleteUserByAdmin));
 router.get('/userlist', authenticateUser, authorizeRoles("superadmin"), asyncHandler(userList));
 

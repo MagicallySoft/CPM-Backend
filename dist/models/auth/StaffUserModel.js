@@ -69,6 +69,7 @@ const StaffUserSchema = new mongoose_1.Schema({
     adminId: { type: mongoose_1.Schema.Types.ObjectId, ref: "AdminUser", required: true },
     registrationCode: { type: String, default: null },
     lastLogin: { type: Date, default: null },
+    IsLogin: { type: Boolean, default: false },
     mfaSecret: { type: String, default: null },
     loginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date, default: null },

@@ -12,12 +12,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.loginUser = void 0;
-// controllers/auth.controller.ts
+exports.logoutUser = exports.loginUser = void 0;
+// controllers/auth/auth.controller.ts
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const StaffUserModel_1 = __importDefault(require("../../models/auth/StaffUserModel"));
 const AdminUserModel_1 = __importDefault(require("../../models/auth/AdminUserModel"));
-const AuditLog_1 = __importDefault(require("../../models/auth/AuditLog"));
 const SubscriptionModel_1 = __importDefault(require("../../models/auth/SubscriptionModel"));
 const jwtUtils_1 = require("../../utils/jwtUtils");
 const responseHandler_1 = require("../../utils/responseHandler");
@@ -57,6 +56,10 @@ const loginUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         user.loginAttempts = 0;
         user.lockUntil = null;
         yield user.save();
+        // Update login activity: mark as logged in and update lastLogin timestamp
+        user.lastLogin = new Date();
+        user.IsLogin = true;
+        yield user.save();
         // For admin users, check subscription validity
         if (userType === "AdminUser") {
             const now = new Date();
@@ -77,22 +80,22 @@ const loginUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             // }
         }
         // Generate JWT token
-        const token = (0, jwtUtils_1.generateToken)(user._id.toString(), userType === "AdminUser" ? user.role : user.role.type);
+        const token = (0, jwtUtils_1.generateToken)(user._id.toString(), userType === "AdminUser" ? user.role : user.role.type, user.adminId.toString());
         // Audit log for the login event
-        yield AuditLog_1.default.create({
-            action: "User Login",
-            userId: user._id,
-            userType,
-            ipAddress: req.ip,
-            userAgent: req.get("User-Agent") || "",
-            timestamp: new Date(),
-        });
+        // await AuditLog.create({
+        //   action: "User Login",
+        //   userId: user._id,
+        //   userType,
+        //   ipAddress: req.ip,
+        //   userAgent: req.get("User-Agent") || "",
+        //   timestamp: new Date(),
+        // });
         // console.log(user);
         const userData = {
             id: user._id,
             name: user.username,
             email: user.email,
-            role: user.role,
+            role: userType === "AdminUser" ? user.role : user.role.type,
             Subscription: user === null || user === void 0 ? void 0 : user.Subscription
         };
         // console.log({ token, userData });
@@ -104,3 +107,30 @@ const loginUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.loginUser = loginUser;
+const logoutUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const user = req.user;
+        console.log(user);
+        if (!user) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 403, "Unauthorized access");
+        }
+        // Update user status to mark as logged out
+        user.IsLogin = false;
+        yield user.save();
+        // Audit log for the logout event
+        // await AuditLog.create({
+        //   action: "User Logout",
+        //   userId: user._id,
+        //   userType: user.role === "admin" || user.role === "superadmin" ? "AdminUser" : "StaffUser",
+        //   ipAddress: req.ip,
+        //   userAgent: req.get("User-Agent") || "",
+        //   timestamp: new Date(),
+        // });
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Logout successful", {});
+    }
+    catch (error) {
+        console.error("Logout Error: ", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Server error");
+    }
+});
+exports.logoutUser = logoutUser;

@@ -4,7 +4,7 @@ import { authenticateUser, authorizeRoles } from '../../middlewares/authMiddlewa
 
 import {registerAdmin, registerStaff} from "../../controller/auth/auth.register"
 import {createRegistrationCode} from "../../controller/auth/auth.code"
-import {loginUser} from "../../controller/auth/auth.loginUser"
+import {loginUser, logoutUser} from "../../controller/auth/auth.loginUser"
 
 // Wrapper function to catch async errors
 const asyncHandler = (fn: any) => (
@@ -23,7 +23,7 @@ router.post("/registeradmin", asyncHandler(registerAdmin));
 router.post("/register", asyncHandler(registerStaff));
 
 router.post('/login', asyncHandler(loginUser));
-// router.post('/logout', authenticateUser, asyncHandler(logoutUser));
+router.post('/logout', authenticateUser, asyncHandler(logoutUser));
 // router.post('/forgot-password', asyncHandler(forgotPassword));
 // router.post('/reset-password', asyncHandler(resetPassword));
 

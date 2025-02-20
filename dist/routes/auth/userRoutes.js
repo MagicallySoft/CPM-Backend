@@ -17,7 +17,7 @@ router.post("/generatecode", authMiddleware_1.authenticateUser, (0, authMiddlewa
 router.post("/registeradmin", asyncHandler(auth_register_1.registerAdmin));
 router.post("/register", asyncHandler(auth_register_1.registerStaff));
 router.post('/login', asyncHandler(auth_loginUser_1.loginUser));
-// router.post('/logout', authenticateUser, asyncHandler(logoutUser));
+router.post('/logout', authMiddleware_1.authenticateUser, asyncHandler(auth_loginUser_1.logoutUser));
 // router.post('/forgot-password', asyncHandler(forgotPassword));
 // router.post('/reset-password', asyncHandler(resetPassword));
 exports.default = router;

@@ -107,7 +107,7 @@ export const registerAdmin = async (req: Request, res: Response) => {
 export const registerStaff = async (req: Request, res: Response) => {
   try {
     const { username, email, password, registrationCode } = req.body;
-    console.log({ username, email, password, registrationCode });
+    // console.log({ username, email, password, registrationCode });
     
     // Validate required fields
     if (!username || !email || !password || !registrationCode) {
@@ -184,6 +184,8 @@ export const registerStaff = async (req: Request, res: Response) => {
       designation: newStaff.role.designation,
 
     }
+    
+    
     return sendSuccessResponse(res, 201, "Registration successful", newStaffData);
   } catch (error: any) {
     console.error("Register Staff Error:", error);

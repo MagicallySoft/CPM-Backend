@@ -27,7 +27,7 @@ const assignTask = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
         const newTask = new taskModel_1.default({
             title,
             description,
-            assignedBy: (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId,
+            assignedBy: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id,
             assignedTo,
             deadline,
             status: "Pending",

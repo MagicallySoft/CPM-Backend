@@ -21,6 +21,7 @@ export interface IStaffUser extends Document {
   adminId: mongoose.Types.ObjectId; // Reference to the parent admin.
   registrationCode?: string;
   lastLogin?: Date;
+  IsLogin?: boolean;
   mfaSecret?: string;
   loginAttempts: number;
   lockUntil?: Date;
@@ -52,6 +53,7 @@ const StaffUserSchema: Schema = new Schema(
     adminId: { type: Schema.Types.ObjectId, ref: "AdminUser", required: true },
     registrationCode: { type: String, default: null },
     lastLogin: { type: Date, default: null },
+    IsLogin: { type: Boolean, default: false },
     mfaSecret: { type: String, default: null },
     loginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date, default: null },

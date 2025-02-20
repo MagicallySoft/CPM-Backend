@@ -49,9 +49,10 @@ exports.addCustomer = addCustomer;
  * Search customers using blind indexes for exact-match queries.
  */
 const searchCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        const adminId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) === "admin" ? req.user.id : (_b = req.user) === null || _b === void 0 ? void 0 : _b.adminId;
+        // console.log(adminId);
         const { companyName, mobileNumber, email, tallySerialNo } = req.query;
         const query = { adminId };
         if (companyName) {
@@ -150,9 +151,9 @@ exports.deleteCustomer = deleteCustomer;
  * Retrieve customers with upcoming renewal dates.
  */
 const getRenewalReminderList = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        const adminId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) === "admin" ? req.user.id : (_b = req.user) === null || _b === void 0 ? void 0 : _b.adminId;
         const { reminderType = "thisMonth", startDate, endDate } = req.query;
         let start, end;
         const today = new Date();
@@ -186,8 +187,9 @@ const getRenewalReminderList = (req, res, next) => __awaiter(void 0, void 0, voi
         const query = { adminId, nextRenewalDate: { $gte: start, $lte: end } };
         // Use the Mongoose model so the virtual getter decrypts the data.
         const customers = yield customerModel_1.default.find(query);
+        // console.log(customers)
         if (!customers || customers.length === 0) {
-            return (0, responseHandler_1.sendErrorResponse)(res, 404, "No customers found for renewal reminder!");
+            return (0, responseHandler_1.sendErrorResponse)(res, 200, "No customers found for renewal reminder!");
         }
         // Decrypt each customer's data for the response.
         const result = customers.map((cust) => {

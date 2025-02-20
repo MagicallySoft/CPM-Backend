@@ -1,4 +1,4 @@
-// controllers/auth.controller.ts
+// controllers/auth/auth.controller.ts
 import bcrypt from "bcryptjs";
 import StaffUser from "../../models/auth/StaffUserModel";
 import AdminUser from "../../models/auth/AdminUserModel";
@@ -55,6 +55,11 @@ export const loginUser = async (req: Request, res: Response) => {
     user.lockUntil = null;
     await user.save();
 
+    // Update login activity: mark as logged in and update lastLogin timestamp
+    user.lastLogin = new Date();
+    user.IsLogin = true;
+    await user.save();
+
     // For admin users, check subscription validity
     if (userType === "AdminUser") {
       const now = new Date();
@@ -84,25 +89,26 @@ export const loginUser = async (req: Request, res: Response) => {
     // Generate JWT token
     const token = generateToken(
       user._id.toString(),
-      userType === "AdminUser" ? user.role : user.role.type
+      userType === "AdminUser" ? user.role : user.role.type,
+      user.adminId.toString()
     );
 
     // Audit log for the login event
-    await AuditLog.create({
-      action: "User Login",
-      userId: user._id,
-      userType,
-      ipAddress: req.ip,
-      userAgent: req.get("User-Agent") || "",
-      timestamp: new Date(),
-    });
+    // await AuditLog.create({
+    //   action: "User Login",
+    //   userId: user._id,
+    //   userType,
+    //   ipAddress: req.ip,
+    //   userAgent: req.get("User-Agent") || "",
+    //   timestamp: new Date(),
+    // });
     // console.log(user);
     
     const userData={
         id:user._id,
         name:user.username,
         email:user.email,
-        role:user.role,
+        role:userType === "AdminUser" ? user.role : user.role.type,
         Subscription:user?.Subscription
     }
     // console.log({ token, userData });
@@ -110,6 +116,39 @@ export const loginUser = async (req: Request, res: Response) => {
     return sendSuccessResponse(res, 200, "Login successful", { token, userData });
   } catch (error) {
     console.error("Login Error: ", error);
+    return sendErrorResponse(res, 500, "Server error");
+  }
+};
+
+
+export const logoutUser = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    console.log(user);
+    
+    if (!user) {
+      return sendErrorResponse(res, 403, "Unauthorized access");
+    }
+
+    // Update user status to mark as logged out
+    user.IsLogin = false;
+    await user.save();
+
+    
+
+    // Audit log for the logout event
+    // await AuditLog.create({
+    //   action: "User Logout",
+    //   userId: user._id,
+    //   userType: user.role === "admin" || user.role === "superadmin" ? "AdminUser" : "StaffUser",
+    //   ipAddress: req.ip,
+    //   userAgent: req.get("User-Agent") || "",
+    //   timestamp: new Date(),
+    // });
+
+    return sendSuccessResponse(res, 200, "Logout successful", {});
+  } catch (error) {
+    console.error("Logout Error: ", error);
     return sendErrorResponse(res, 500, "Server error");
   }
 };

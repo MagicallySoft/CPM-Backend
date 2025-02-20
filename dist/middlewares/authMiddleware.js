@@ -20,7 +20,8 @@ const authenticateUser = (req, res, next) => {
         }
         req.user = {
             id: decoded.id,
-            role: decoded.role
+            role: decoded.role,
+            adminId: decoded.adminId
         };
         next();
     }

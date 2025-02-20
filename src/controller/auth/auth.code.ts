@@ -63,7 +63,8 @@ export const createRegistrationCode = async (
       designation: assignedToRole === "employee" ? designation : undefined,
       expiresAt: expiresAt,
     });
-
+    // console.log(registrationCode);
+    
     await registrationCode.save();
 
     return sendSuccessResponse(

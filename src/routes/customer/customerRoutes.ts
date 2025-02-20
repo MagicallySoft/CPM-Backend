@@ -21,7 +21,7 @@ router.post("/importcustomers", upload.single("file"), authenticateUser, authori
 
 router.post("/customfield", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(addCustomField));
 
-router.get("/customfield", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(getCustomFields));
+router.get("/customfield", authenticateUser, authorizeRoles("admin", "superadmin", "employee"), asyncHandler(getCustomFields));
 
 router.put("/customfield/:id", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(updateCustomField));
 
@@ -32,9 +32,9 @@ router.delete("/customfield/:id", authenticateUser, authorizeRoles("admin", "sup
 
 router.post("/customer", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(addCustomer));
 
-router.get('/customer/product', authenticateUser, authorizeRoles('admin'), asyncHandler(getRenewalReminderList));
+router.get('/customer/product', authenticateUser, authorizeRoles('admin', "employee"), asyncHandler(getRenewalReminderList));
 
-router.get("/customer", authenticateUser, authorizeRoles("admin", "user", "superadmin"), asyncHandler(searchCustomer));
+router.get("/customer", authenticateUser, authorizeRoles("admin", "employee", "superadmin"), asyncHandler(searchCustomer));
 
 router.delete('/customer/:id', authenticateUser, authorizeRoles('admin'), asyncHandler(deleteCustomer));
 

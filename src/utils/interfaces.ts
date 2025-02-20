@@ -10,11 +10,13 @@ export interface MulterRequest extends Request {
 
 // 1. IUser Interface for the User Model
 export interface IUser extends Document {
+  IsLogin: boolean;
   designation: string;
   username: string | null;
   email: string;
   password: string;
   role: string | "user" | "superadmin"; // You can add more roles if needed
+  Subscription:  "active" | "expired" | "cancelled";
   adminId: mongoose.Types.ObjectId;
   registrationCode: string;
   lastLogin: Date | null;
