@@ -90,7 +90,7 @@ export const loginUser = async (req: Request, res: Response) => {
     const token = generateToken(
       user._id.toString(),
       userType === "AdminUser" ? user.role : user.role.type,
-      user.adminId.toString()
+      user.adminId?.toString()
     );
 
     // Audit log for the login event

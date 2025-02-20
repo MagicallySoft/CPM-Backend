@@ -185,7 +185,7 @@ export const getRenewalReminderList = async (req: Request, res: Response, next: 
     const customers = await Customer.find(query);
     // console.log(customers)
     if (!customers || customers.length === 0) {
-      return sendErrorResponse(res, 200, "No customers found for renewal reminder!");
+      return sendSuccessResponse(res, 200, "No customers found for renewal reminder!");
     }
 
     // Decrypt each customer's data for the response.

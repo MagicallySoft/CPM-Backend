@@ -189,7 +189,7 @@ const getRenewalReminderList = (req, res, next) => __awaiter(void 0, void 0, voi
         const customers = yield customerModel_1.default.find(query);
         // console.log(customers)
         if (!customers || customers.length === 0) {
-            return (0, responseHandler_1.sendErrorResponse)(res, 200, "No customers found for renewal reminder!");
+            return (0, responseHandler_1.sendSuccessResponse)(res, 200, "No customers found for renewal reminder!");
         }
         // Decrypt each customer's data for the response.
         const result = customers.map((cust) => {

@@ -21,6 +21,7 @@ const SubscriptionModel_1 = __importDefault(require("../../models/auth/Subscript
 const jwtUtils_1 = require("../../utils/jwtUtils");
 const responseHandler_1 = require("../../utils/responseHandler");
 const loginUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { email, password, mfaCode, isAdmin } = req.body;
         // console.log({ email, password, mfaCode, isAdmin });
@@ -80,7 +81,7 @@ const loginUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             // }
         }
         // Generate JWT token
-        const token = (0, jwtUtils_1.generateToken)(user._id.toString(), userType === "AdminUser" ? user.role : user.role.type, user.adminId.toString());
+        const token = (0, jwtUtils_1.generateToken)(user._id.toString(), userType === "AdminUser" ? user.role : user.role.type, (_a = user.adminId) === null || _a === void 0 ? void 0 : _a.toString());
         // Audit log for the login event
         // await AuditLog.create({
         //   action: "User Login",
