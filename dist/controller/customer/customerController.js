@@ -29,6 +29,13 @@ const addCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
         if (!customerData) {
             return (0, responseHandler_1.sendErrorResponse)(res, 400, "Customer data is required.");
         }
+        // Convert companyName and contactPerson to uppercase
+        if (customerData.companyName) {
+            customerData.companyName = customerData.companyName.toUpperCase();
+        }
+        if (customerData.contactPerson) {
+            customerData.contactPerson = customerData.contactPerson.toUpperCase();
+        }
         const newCustomer = new customerModel_1.default({
             adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id, // Assumes authentication middleware has set req.user
         });
@@ -53,10 +60,13 @@ const searchCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
     try {
         const adminId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) === "admin" ? req.user.id : (_b = req.user) === null || _b === void 0 ? void 0 : _b.adminId;
         // console.log(adminId);
-        const { companyName, mobileNumber, email, tallySerialNo } = req.query;
+        const { companyName, mobileNumber, contactPerson, email, tallySerialNo } = req.query;
         const query = { adminId };
         if (companyName) {
-            query.companyNameIndex = (0, encryption_1.computeBlindIndex)(String(companyName));
+            query.companyNameIndex = (0, encryption_1.computeBlindIndex)(String(companyName).toUpperCase());
+        }
+        if (contactPerson) {
+            query.contactPersonIndex = (0, encryption_1.computeBlindIndex)(String(contactPerson).toUpperCase());
         }
         if (mobileNumber) {
             query.mobileNumberIndex = (0, encryption_1.computeBlindIndex)(String(mobileNumber));
@@ -74,7 +84,7 @@ const searchCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
         const totalCount = yield customerModel_1.default.countDocuments(query);
         const customers = yield customerModel_1.default.find(query).skip(skip).limit(limit);
         if (customers.length === 0) {
-            return (0, responseHandler_1.sendErrorResponse)(res, 404, "No customers found!");
+            return (0, responseHandler_1.sendSuccessResponse)(res, 200, "No customers found!");
         }
         // Decrypt each customer's data (via the virtual getter) for the response.
         const result = customers.map((cust) => {
@@ -236,8 +246,8 @@ const importCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function
         const customersToInsert = customerRecords.map((record) => {
             var _a;
             const customerData = {
-                companyName: record.companyName || record.CompanyName,
-                contactPerson: record.contactPerson || record.ContactPerson,
+                companyName: record.companyName.toUpperCase() || record.CompanyName.toUpperCase(),
+                contactPerson: record.contactPerson.toUpperCase() || record.ContactPerson.toUpperCase(),
                 mobileNumber: record.mobileNumber || record.MobileNumber,
                 email: record.email || record.Email,
                 tallySerialNo: record.tallySerialNo || record.TallySerialNo,

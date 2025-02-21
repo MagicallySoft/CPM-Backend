@@ -16,7 +16,7 @@ export const generateToken = (
   if (adminId) {
     payload.adminId = adminId;
   }
-  console.log("payload------>\n",payload);
+  // console.log("payload------>\n",payload);
   
   const secretKey = process.env.JWT_SECRET_KEY || "CPM@shivansh@123"; // JWT secret key
   // Generate the token with 1-hour expiration

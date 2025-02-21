@@ -11,7 +11,7 @@ const IV_LENGTH = 16; // AES block size
  * Encrypts the given text using AES-256-GCM.
  * Returns a string containing the iv, auth tag, and encrypted text (all in hex).
  */
-export function encryptData(text: string): string {
+export function encryptData(text: string): string { 
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(ENCRYPTION_KEY, "utf8"), iv);
   let encrypted = cipher.update(text, "utf8", "hex");
@@ -49,3 +49,4 @@ export function computeBlindIndex(text: string): string {
     .update(text)
     .digest("hex");
 }
+

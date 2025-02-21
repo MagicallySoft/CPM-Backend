@@ -17,6 +17,14 @@ export const addCustomer = async (req: Request, res: Response, next: NextFunctio
       return sendErrorResponse(res, 400, "Customer data is required.");
     }
 
+    // Convert companyName and contactPerson to uppercase
+    if (customerData.companyName) {
+      customerData.companyName = customerData.companyName.toUpperCase();
+    }
+    if (customerData.contactPerson) {
+      customerData.contactPerson = customerData.contactPerson.toUpperCase();
+    }
+
     const newCustomer = new Customer({
       adminId: req.user?.id, // Assumes authentication middleware has set req.user
     });
@@ -34,6 +42,7 @@ export const addCustomer = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
+
 /**
  * Search customers using blind indexes for exact-match queries.
  */
@@ -42,11 +51,14 @@ export const searchCustomer = async (req: Request, res: Response, next: NextFunc
     const adminId = req.user?.role === "admin" ? req.user.id : req.user?.adminId;
     // console.log(adminId);
     
-    const { companyName, mobileNumber, email, tallySerialNo } = req.query;
+    const { companyName, mobileNumber, contactPerson, email, tallySerialNo } = req.query;
     const query: any = { adminId };
 
     if (companyName) {
-      query.companyNameIndex = computeBlindIndex(String(companyName));
+      query.companyNameIndex = computeBlindIndex(String(companyName).toUpperCase());
+    }
+    if (contactPerson) {
+      query.contactPersonIndex = computeBlindIndex(String(contactPerson).toUpperCase());
     }
     if (mobileNumber) {
       query.mobileNumberIndex = computeBlindIndex(String(mobileNumber));
@@ -67,7 +79,7 @@ export const searchCustomer = async (req: Request, res: Response, next: NextFunc
     const customers = await Customer.find(query).skip(skip).limit(limit);
 
     if (customers.length === 0) {
-      return sendErrorResponse(res, 404, "No customers found!");
+      return sendSuccessResponse(res, 200, "No customers found!");
     }
 
     // Decrypt each customer's data (via the virtual getter) for the response.
@@ -233,8 +245,8 @@ export const importCustomers = async (req: MulterRequest, res: Response) => {
     // Adjust field names if your CSV/Excel headers differ.
     const customersToInsert = customerRecords.map((record: any) => {
       const customerData: ICustomerData = {
-        companyName: record.companyName || record.CompanyName,
-        contactPerson: record.contactPerson || record.ContactPerson,
+        companyName: record.companyName.toUpperCase() || record.CompanyName.toUpperCase(),
+        contactPerson: record.contactPerson.toUpperCase() || record.ContactPerson.toUpperCase(),
         mobileNumber: record.mobileNumber || record.MobileNumber,
         email: record.email || record.Email,
         tallySerialNo: record.tallySerialNo || record.TallySerialNo,

@@ -32,7 +32,7 @@ export interface ICustomer extends Document {
   companyNameIndex: string;
   emailIndex: string;
   tallySerialNoIndex: string;
-  nextRenewalDate?: Date;
+  nextRenewalDate?: Date[];
   data: ICustomerData;
 }
 
@@ -46,7 +46,7 @@ const CustomerSchema: Schema<ICustomer> = new Schema(
     companyNameIndex: { type: String, required: true, index: true },
     emailIndex: { type: String, required: true, index: true },
     tallySerialNoIndex: { type: String, required: true, index: true },
-    nextRenewalDate: { type: Date, index: true },
+    nextRenewalDate: { type: [Date], index: true },
   },
   { timestamps: true }
 );
@@ -84,9 +84,9 @@ CustomerSchema.pre<ICustomer>("save", function (next) {
     if (data.products && Array.isArray(data.products)) {
       const renewalDates = data.products
         .filter((p: any) => p.renewalDate)
-        .map((p: any) => new Date(p.renewalDate).getTime());
+        .map((p: any) => new Date(p.renewalDate));
       if (renewalDates.length > 0) {
-        this.nextRenewalDate = new Date(Math.min(...renewalDates));
+        this.nextRenewalDate = renewalDates;
       }
     }
     next();
@@ -97,3 +97,74 @@ CustomerSchema.pre<ICustomer>("save", function (next) {
 
 const Customer = mongoose.model<ICustomer>("Customer", CustomerSchema);
 export default Customer;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // models/customer/customerModel.ts
+// import mongoose, { Schema, Document } from "mongoose";
+
+// export interface ICustomerData {
+//   companyName: string;
+//   contactPerson: string;
+//   mobileNumber: string;
+//   email: string;
+//   tallySerialNo: string;
+//   prime: boolean;
+//   blacklisted: boolean;
+//   remark?: string;
+//   products?: Array<{ [key: string]: any }>;
+//   dynamicFields?: { [key: string]: any };
+// }
+
+// export interface ICustomer extends Document, ICustomerData {
+//   adminId: mongoose.Types.ObjectId;
+//   nextRenewalDate?: Date;
+// }
+
+// const CustomerSchema: Schema<ICustomer> = new Schema(
+//   {
+//     adminId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+//     companyName: { type: String, required: true },
+//     contactPerson: { type: String, required: true },
+//     mobileNumber: { type: String, required: true },
+//     email: { type: String, required: true },
+//     tallySerialNo: { type: String, required: true },
+//     prime: { type: Boolean, required: true },
+//     blacklisted: { type: Boolean, required: true },
+//     remark: { type: String },
+//     products: { type: [Schema.Types.Mixed] },
+//     dynamicFields: { type: Schema.Types.Mixed },
+//     nextRenewalDate: { type: Date, index: true },
+//   },
+//   { timestamps: true }
+// );
+
+// // Optional: Update nextRenewalDate based on the earliest renewalDate in products.
+// CustomerSchema.pre<ICustomer>("save", function (next) {
+//   if (this.products && Array.isArray(this.products)) {
+//     const renewalDates = this.products
+//       .filter((p: any) => p.renewalDate)
+//       .map((p: any) => new Date(p.renewalDate).getTime());
+//     if (renewalDates.length > 0) {
+//       this.nextRenewalDate = new Date(Math.min(...renewalDates));
+//     }
+//   }
+//   next();
+// });
+
+// const Customer = mongoose.model<ICustomer>("Customer", CustomerSchema);
+// export default Customer;
