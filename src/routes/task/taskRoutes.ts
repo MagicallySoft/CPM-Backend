@@ -22,7 +22,7 @@ router.put("/task/:id", authenticateUser, authorizeRoles("admin"), asyncHandler(
 router.delete("/task/:id", authenticateUser, authorizeRoles("admin"), asyncHandler(deleteTask));
 
 // User routes
-router.get("/task/user", authenticateUser, authorizeRoles("user"), asyncHandler(getUserTasks));
-router.put("/task/status/:id", authenticateUser, authorizeRoles("user"), asyncHandler(updateTaskStatus));
+router.get("/task/user", authenticateUser, authorizeRoles("employee"), asyncHandler(getUserTasks));
+router.put("/task/status/:id", authenticateUser, authorizeRoles("employee"), asyncHandler(updateTaskStatus));
 
 export default router;

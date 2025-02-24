@@ -30,7 +30,7 @@ export const assignTask = async (req: Request, res: Response, next: NextFunction
 // Get tasks assigned by an admin
 export const getTasksByAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tasks = await Task.find({ assignedBy: req.user?.userId }).populate("assignedTo", "username email");
+    const tasks = await Task.find({ assignedBy: req.user?.id }).populate("assignedTo", "username email");
     // console.log(req.user?.userId);
     
     // console.log(tasks)
@@ -43,7 +43,8 @@ export const getTasksByAdmin = async (req: Request, res: Response, next: NextFun
 // Get tasks assigned to a user
 export const getUserTasks = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tasks = await Task.find({ assignedTo: req.user?.userId });
+    // console.log(req.user);
+    const tasks = await Task.find({ assignedTo: req.user?.id });
 
     // Group tasks by their status
     const groupedTasks = tasks.reduce((groups:any, task) => {
@@ -120,7 +121,7 @@ export const updateTaskStatus = async (req: Request, res: Response, next: NextFu
     }
 
     const updatedTask = await Task.findOneAndUpdate(
-      { _id: id, assignedTo: req.user?.userId },
+      { _id: id, assignedTo: req.user?.id },
       updateFields,
       { new: true, runValidators: true }
     );

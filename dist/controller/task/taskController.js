@@ -44,7 +44,7 @@ exports.assignTask = assignTask;
 const getTasksByAdmin = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
-        const tasks = yield taskModel_1.default.find({ assignedBy: (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId }).populate("assignedTo", "username email");
+        const tasks = yield taskModel_1.default.find({ assignedBy: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id }).populate("assignedTo", "username email");
         // console.log(req.user?.userId);
         // console.log(tasks)
         return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Tasks retrieved successfully", tasks);
@@ -58,7 +58,8 @@ exports.getTasksByAdmin = getTasksByAdmin;
 const getUserTasks = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
-        const tasks = yield taskModel_1.default.find({ assignedTo: (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId });
+        // console.log(req.user);
+        const tasks = yield taskModel_1.default.find({ assignedTo: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id });
         // Group tasks by their status
         const groupedTasks = tasks.reduce((groups, task) => {
             const status = task.status || 'Unknown'; // Default to 'Unknown' if status is missing
@@ -124,7 +125,7 @@ const updateTaskStatus = (req, res, next) => __awaiter(void 0, void 0, void 0, f
         else if (status === "Completed") {
             updateFields.completedAt = new Date(); // Save timestamp when moved to "Completed"
         }
-        const updatedTask = yield taskModel_1.default.findOneAndUpdate({ _id: id, assignedTo: (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId }, updateFields, { new: true, runValidators: true });
+        const updatedTask = yield taskModel_1.default.findOneAndUpdate({ _id: id, assignedTo: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id }, updateFields, { new: true, runValidators: true });
         if (!updatedTask) {
             return (0, responseHandler_1.sendErrorResponse)(res, 404, "Task not found or unauthorized");
         }

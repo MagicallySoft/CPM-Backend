@@ -14,6 +14,6 @@ router.get("/task/admin", authMiddleware_1.authenticateUser, (0, authMiddleware_
 router.put("/task/:id", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin"), asyncHandler(taskController_1.updateTask));
 router.delete("/task/:id", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin"), asyncHandler(taskController_1.deleteTask));
 // User routes
-router.get("/task/user", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("user"), asyncHandler(taskController_1.getUserTasks));
-router.put("/task/status/:id", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("user"), asyncHandler(taskController_1.updateTaskStatus));
+router.get("/task/user", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("employee"), asyncHandler(taskController_1.getUserTasks));
+router.put("/task/status/:id", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("employee"), asyncHandler(taskController_1.updateTaskStatus));
 exports.default = router;

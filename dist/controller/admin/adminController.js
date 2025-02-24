@@ -18,18 +18,24 @@ const StaffUserModel_1 = __importDefault(require("../../models/auth/StaffUserMod
 const responseHandler_1 = require("../../utils/responseHandler");
 const userList = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        // Fetch all relevant users from User table
-        const users = yield AdminUserModel_1.default.find({ role: { $in: ["superadmin", "admin", "subadmin", "employee"] } }, "username email role adminId")
-            .populate("adminId", "username email role")
-            .lean();
-        // Group users by role
+        // 1. Fetch all admin users (superadmin and admin)
+        const admins = yield AdminUserModel_1.default.find({}, "username email role createdAt updatedAt").lean();
+        // 2. Fetch all staff users (subadmin and employee)
+        const staffUsers = yield StaffUserModel_1.default.find({}, "username email role createdAt updatedAt").lean();
+        // 3. Group admins by their role.
+        const superadmins = admins.filter((admin) => admin.role === "superadmin");
+        const adminUsers = admins.filter((admin) => admin.role === "admin");
+        // 4. Group staff users by their nested role.type.
+        const subadmins = staffUsers.filter((staff) => { var _a; return ((_a = staff.role) === null || _a === void 0 ? void 0 : _a.type) === "subadmin"; });
+        const employees = staffUsers.filter((staff) => { var _a; return ((_a = staff.role) === null || _a === void 0 ? void 0 : _a.type) === "employee"; });
+        // 5. Build the final grouping structure.
         const groupedUsers = {
-            superadmins: users.filter((user) => user.role === "superadmin"),
-            admins: users.filter((user) => user.role === "admin"),
-            subadmins: users.filter((user) => user.role),
-            employees: users.filter((user) => user.role),
+            superadmins,
+            admins: adminUsers,
+            employees,
+            subadmins,
         };
-        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Users retrieved successfully", groupedUsers);
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Users fetched successfully", groupedUsers);
     }
     catch (error) {
         console.error("Error in userList:", error);
