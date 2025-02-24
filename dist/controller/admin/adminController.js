@@ -40,28 +40,30 @@ exports.userList = userList;
 const getUsersByAdmin = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const user = req.user;
+        // console.log("User",user)
         if (!user) {
             return (0, responseHandler_1.sendErrorResponse)(res, 403, "Unauthorized access.");
         }
         let adminId;
+        // Determine the appropriate adminId based on the role of the logged-in user.
         if (user.role === "admin") {
-            adminId = user.userId; // Admin fetching users under them
+            adminId = user.id; // Admin fetching their own staff
         }
         else if (user.role === "subadmin") {
-            adminId = user.adminId; // Subadmin fetching only employees under them
+            adminId = user.adminId; // Subadmin fetching staff under their parent admin
         }
         else {
-            return (0, responseHandler_1.sendErrorResponse)(res, 403, "Access denied. Admins only.");
+            return (0, responseHandler_1.sendErrorResponse)(res, 403, "Access denied. Only admins or subadmins can access this.");
         }
-        // Fetch subadmins and employees based on role
-        const subAdminsAndEmployees = yield AdminUserModel_1.default.find({ adminId: adminId, role: { $in: ["subadmin", "employee"] } }, "username email role createdAt updatedAt designation")
-            .populate("adminId", "username email role")
-            .lean();
-        // Grouping logic
+        // Fetch staff users for the given adminId, filtering by role type.
+        const staffUsers = yield StaffUserModel_1.default.find({ adminId, "role.type": { $in: ["subadmin", "employee"] } }, "username email role createdAt updatedAt ").lean();
+        // console.log("staffUsers--->", staffUsers)
+        // Group the fetched staff users by their role.
         const groupedUsers = {
-            subadmins: subAdminsAndEmployees.filter((user) => user.role),
-            employees: subAdminsAndEmployees.filter((user) => user.role),
+            subadmins: staffUsers.filter((u) => u.role.type === "subadmin"),
+            employees: staffUsers.filter((u) => u.role.type === "employee"),
         };
+        // console.log("groupedUsers",groupedUsers)
         return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Users fetched successfully", groupedUsers);
     }
     catch (error) {
