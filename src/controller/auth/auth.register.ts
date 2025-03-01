@@ -11,7 +11,7 @@ import { sendSuccessResponse, sendErrorResponse } from "../../utils/responseHand
 export const registerAdmin = async (req: Request, res: Response) => {
   try {
     const { username, email, password, subscriptionPlan, paymentDetails } = req.body;
-
+    // console.log(req.body)
     // Validate required fields
     if (!username || !email || !password || !subscriptionPlan || !paymentDetails) {
       return sendErrorResponse(res, 400, "All fields are required", {

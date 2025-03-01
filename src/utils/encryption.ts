@@ -49,4 +49,3 @@ export function computeBlindIndex(text: string): string {
     .update(text)
     .digest("hex");
 }
-

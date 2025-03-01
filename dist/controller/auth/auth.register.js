@@ -23,6 +23,7 @@ const responseHandler_1 = require("../../utils/responseHandler");
 const registerAdmin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { username, email, password, subscriptionPlan, paymentDetails } = req.body;
+        // console.log(req.body)
         // Validate required fields
         if (!username || !email || !password || !subscriptionPlan || !paymentDetails) {
             return (0, responseHandler_1.sendErrorResponse)(res, 400, "All fields are required", {

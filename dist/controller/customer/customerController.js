@@ -12,12 +12,52 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.importCustomers = exports.getRenewalReminderList = exports.deleteCustomer = exports.updateCustomer = exports.searchCustomer = exports.addCustomer = void 0;
+exports.importCustomers = exports.getProductRenewals = exports.deleteCustomer = exports.updateCustomer = exports.searchCustomer = exports.addCustomer = exports.addProductDetail = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
 const csvtojson_1 = __importDefault(require("csvtojson"));
 const xlsx_1 = __importDefault(require("xlsx"));
 const customerModel_1 = __importDefault(require("../../models/customer/customerModel"));
-const encryption_1 = require("../../utils/encryption");
+const productModel_1 = __importDefault(require("../../models/customer/productModel"));
 const responseHandler_1 = require("../../utils/responseHandler");
+const productDetailModel_1 = __importDefault(require("../../models/customer/productDetailModel"));
+const addProductDetail = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        // Check if the request is made by an authenticated admin.
+        // This assumes an authentication middleware that sets req.user.
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        if (!adminId) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 401, "Unauthorized: Admin access required.");
+        }
+        // Extract required fields from request body.
+        const { name, price, description, link, category, tags, specifications } = req.body;
+        // Basic validation: name and price are required.
+        if (!name || price === undefined) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 400, "Name and price are required.");
+        }
+        // Create a new product detail document.
+        const newProductDetail = new productDetailModel_1.default({
+            adminId,
+            name,
+            price,
+            description,
+            link,
+            category,
+            tags,
+            specifications,
+        });
+        // Save the document to the database.
+        const savedProductDetail = yield newProductDetail.save();
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "saved Product Detail", savedProductDetail);
+    }
+    catch (error) {
+        console.error("Error adding product detail:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", {
+            error: error.message,
+        });
+    }
+});
+exports.addProductDetail = addProductDetail;
 /**
  * Add a new customer.
  * The virtual field "data" triggers encryption and blind index calculation.
@@ -25,87 +65,182 @@ const responseHandler_1 = require("../../utils/responseHandler");
 const addCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
-        const customerData = req.body;
-        if (!customerData) {
-            return (0, responseHandler_1.sendErrorResponse)(res, 400, "Customer data is required.");
+        // Ensure the request is made by an authenticated admin.
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        if (!adminId) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 401, "Unauthorized: Admin access required.");
         }
-        // Convert companyName and contactPerson to uppercase
-        if (customerData.companyName) {
-            customerData.companyName = customerData.companyName.toUpperCase();
+        // Extract customer fields and the products array from the request body.
+        const { companyName, contactPerson, mobileNumber, email, tallySerialNo, prime, blacklisted, remark, dynamicFields, referenceDetail, products, // products should be an array of product objects
+         } = req.body;
+        // Validate required customer fields.
+        if (!companyName ||
+            !contactPerson ||
+            !mobileNumber ||
+            !email ||
+            !tallySerialNo) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 400, "Missing required customer fields.");
         }
-        if (customerData.contactPerson) {
-            customerData.contactPerson = customerData.contactPerson.toUpperCase();
+        // Validate referenceDetail if provided: must have either referenceId or both referenceName and referenceContact.
+        if (referenceDetail) {
+            const { referenceId, referenceName, referenceContact } = referenceDetail;
+            if (!referenceId && (!referenceName || !referenceContact)) {
+                return (0, responseHandler_1.sendErrorResponse)(res, 400, "Invalid referenceDetail: provide either referenceId or both referenceName and referenceContact.");
+            }
         }
+        // Create the customer document with adminId attached.
         const newCustomer = new customerModel_1.default({
-            adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id, // Assumes authentication middleware has set req.user
+            adminId,
+            companyName,
+            contactPerson,
+            mobileNumber,
+            email,
+            tallySerialNo,
+            prime: prime || false,
+            blacklisted: blacklisted || false,
+            remark,
+            dynamicFields,
+            referenceDetail,
         });
-        // Virtual setter encrypts the data and calculates blind indexes.
-        newCustomer.data = customerData;
-        yield newCustomer.save();
-        return (0, responseHandler_1.sendSuccessResponse)(res, 201, "Customer added successfully", {
-            customerId: newCustomer._id,
+        const savedCustomer = yield newCustomer.save();
+        let savedProducts = [];
+        if (Array.isArray(products) && products.length > 0) {
+            // Map each product to a new Product document.
+            const productDocs = products.map((product) => {
+                // Validate that each product has a productDetailId.
+                if (!product.productDetailId) {
+                    throw new Error("Each product must have a productDetailId.");
+                }
+                return new productModel_1.default({
+                    customerId: savedCustomer._id,
+                    adminId, // use admin id from the authenticated user
+                    productDetailId: product.productDetailId,
+                    purchaseDate: product.purchaseDate
+                        ? new Date(product.purchaseDate)
+                        : new Date(),
+                    renewalDate: product.renewalDate
+                        ? new Date(product.renewalDate)
+                        : undefined,
+                    details: product.details,
+                    autoUpdated: product.autoUpdated || false,
+                    updatedBy: product.updatedBy,
+                    renewalCancelled: product.renewalCancelled || false,
+                });
+            });
+            // Save all product documents concurrently.
+            savedProducts = yield Promise.all(productDocs.map((doc) => doc.save()));
+        }
+        // Populate all related fields in the saved customer document.
+        const populatedCustomer = yield customerModel_1.default.findById(savedCustomer._id)
+            .populate("products") // virtual populate of related products
+            .populate("adminId") // if you wish to see details of the admin
+            .populate({
+            path: "referenceDetail.referenceId", // populate staff user if referenceId exists
+            model: "StaffUser",
         });
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Customer Added", populatedCustomer);
     }
     catch (error) {
-        console.error("Add Customer Error:", error);
-        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", { error: error.message });
+        console.error("Error adding customer and products:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", {
+            error: error.message,
+        });
     }
 });
 exports.addCustomer = addCustomer;
 /**
- * Search customers using blind indexes for exact-match queries.
+ * List customers in full detail (with products and reference info).
+ * - Only customers created by the authenticated admin are returned.
+ * - Supports text search (companyName, tallySerialNo, contactPerson, mobileNumber),
+ *   filtering by reference and product, and pagination.
+ * - Populates products (and nested product details), reference details, and admin info.
  */
 const searchCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a;
     try {
-        const adminId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) === "admin" ? req.user.id : (_b = req.user) === null || _b === void 0 ? void 0 : _b.adminId;
-        // console.log(adminId);
-        const { companyName, mobileNumber, contactPerson, email, tallySerialNo } = req.query;
-        const query = { adminId };
-        if (companyName) {
-            query.companyNameIndex = (0, encryption_1.computeBlindIndex)(String(companyName).toUpperCase());
+        // Ensure request is made by an authenticated admin.
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        if (!adminId) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 401, "Unauthorized: Admin access required");
         }
-        if (contactPerson) {
-            query.contactPersonIndex = (0, encryption_1.computeBlindIndex)(String(contactPerson).toUpperCase());
-        }
-        if (mobileNumber) {
-            query.mobileNumberIndex = (0, encryption_1.computeBlindIndex)(String(mobileNumber));
-        }
-        if (email) {
-            query.emailIndex = (0, encryption_1.computeBlindIndex)(String(email));
-        }
-        if (tallySerialNo) {
-            query.tallySerialNoIndex = (0, encryption_1.computeBlindIndex)(String(tallySerialNo));
-        }
-        // Pagination parameters
-        const page = parseInt(req.query.page, 10) || 1;
-        const limit = parseInt(req.query.limit, 10) || 10;
+        // Extract query parameters.
+        const search = req.query.search; // For text search
+        const referenceFilter = req.query.reference; // Filter by reference name/contact
+        const productFilter = req.query.product; // Filter by productDetailId (assumed)
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
-        const totalCount = yield customerModel_1.default.countDocuments(query);
-        const customers = yield customerModel_1.default.find(query).skip(skip).limit(limit);
-        if (customers.length === 0) {
-            return (0, responseHandler_1.sendSuccessResponse)(res, 200, "No customers found!");
+        // console.log(page)
+        // console.log(limit)
+        // Build the query filter for Customer.
+        const filter = { adminId };
+        // Apply text search on fields with a text index.
+        if (search) {
+            // NOTE: For ElasticSearch integration, replace this with your ES client call.
+            filter.$text = { $search: search };
         }
-        // Decrypt each customer's data (via the virtual getter) for the response.
-        const result = customers.map((cust) => {
-            // Using the virtual getter, which decrypts the encryptedData.
-            const decryptedData = cust.data;
-            // Merge decrypted data with selected fields (you can exclude encrypted fields if desired)
-            return Object.assign({ _id: cust._id, adminId: cust.adminId, nextRenewalDate: cust.nextRenewalDate }, decryptedData);
-        });
-        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Customers found", {
-            customers: result,
-            pagination: {
-                totalItems: totalCount,
-                totalPages: Math.ceil(totalCount / limit),
-                currentPage: page,
-                pageSize: limit,
+        // console.log(filter);
+        // Apply reference filtering on referenceDetail fields.
+        if (referenceFilter) {
+            filter.$or = [
+                {
+                    "referenceDetail.referenceName": {
+                        $regex: referenceFilter,
+                        $options: "i",
+                    },
+                },
+                {
+                    "referenceDetail.referenceContact": {
+                        $regex: referenceFilter,
+                        $options: "i",
+                    },
+                },
+            ];
+        }
+        // Apply product filtering.
+        // Here we assume `productFilter` is a productDetailId to filter customers having a product with that productDetailId.
+        if (productFilter) {
+            // Find products that match the given productDetailId.
+            const matchingProducts = yield productModel_1.default.find({
+                productDetailId: productFilter,
+                adminId: adminId,
+            }).select("customerId");
+            // Map to array of customer IDs.
+            const customerIds = matchingProducts.map((product) => product.customerId);
+            // Apply filter to return only those customers.
+            filter._id = { $in: customerIds };
+        }
+        // Get total count for pagination.
+        const total = yield customerModel_1.default.countDocuments(filter);
+        // Fetch customers with population of virtual products, nested product details,
+        // reference details, and admin info.
+        const customers = yield customerModel_1.default.find(filter)
+            .populate({
+            path: "products",
+            populate: {
+                path: "productDetailId",
+                model: "ProductDetail",
             },
+        })
+            .populate({
+            path: "referenceDetail.referenceId",
+            model: "StaffUser",
+        })
+            .populate("adminId")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .exec();
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Customers fetched successfully", {
+            customers,
+            total,
+            page,
+            limit,
         });
     }
     catch (error) {
-        console.error("Search Customer Error:", error);
-        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", { error: error.message });
+        console.error("Error fetching customers:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal server error", error);
     }
 });
 exports.searchCustomer = searchCustomer;
@@ -119,21 +254,25 @@ const updateCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
         const customerId = req.params.id;
         const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
         const newData = req.body;
-        // Find the customer document by ID and ensure the admin owns it.
-        const customer = yield customerModel_1.default.findOne({ _id: customerId, adminId });
-        if (!customer) {
-            return (0, responseHandler_1.sendErrorResponse)(res, 404, "Customer not found or unauthorized");
-        }
-        // Merge new data with the existing decrypted data.
-        const currentData = customer.data;
-        const updatedData = Object.assign(Object.assign({}, currentData), newData);
-        customer.data = updatedData; // Triggers re-encryption and blind index recalculation
-        yield customer.save();
-        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Customer updated successfully", customer);
+        // // Find the customer document by ID and ensure the admin owns it.
+        // const customer = await Customer.findOne({ _id: customerId, adminId });
+        // if (!customer) {
+        //   return sendErrorResponse(res, 404, "Customer not found or unauthorized");
+        // }
+        // // Merge new data with the existing decrypted data.
+        // const currentData = customer.data;
+        // const updatedData = { ...currentData, ...newData };
+        // customer.data = updatedData; // Triggers re-encryption and blind index recalculation
+        // await customer.save();
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Customer updated successfully"
+        // customer
+        );
     }
     catch (error) {
         console.error("Update Customer Error:", error);
-        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", { error: error.message });
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", {
+            error: error.message,
+        });
     }
 });
 exports.updateCustomer = updateCustomer;
@@ -143,94 +282,209 @@ exports.updateCustomer = updateCustomer;
 const deleteCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
-        const customerId = req.params.id;
+        // Ensure the request is made by an authenticated admin.
         const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
-        const customer = yield customerModel_1.default.findOneAndDelete({ _id: customerId, adminId });
+        if (!adminId) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 401, "Unauthorized: Admin access required");
+        }
+        // Extract customerId from the route parameters.
+        const { id } = req.params;
+        const customerId = id;
+        // console.log( req.params)
+        // console.log(customerId)
+        //
+        if (!customerId) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 400, "Customer id is required");
+        }
+        // Find the customer ensuring they belong to the admin.
+        const customer = yield customerModel_1.default.findOne({ _id: customerId, adminId });
         if (!customer) {
             return (0, responseHandler_1.sendErrorResponse)(res, 404, "Customer not found or unauthorized");
         }
-        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Customer deleted successfully");
+        // Delete all products associated with this customer.
+        yield productModel_1.default.deleteMany({ customerId });
+        // Delete the customer document.
+        yield customerModel_1.default.deleteOne({ _id: customerId });
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Customer and associated products deleted successfully");
     }
     catch (error) {
-        console.error("Delete Customer Error:", error);
-        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", { error: error.message });
+        console.error("Error deleting customer and products:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal server error", error);
     }
 });
 exports.deleteCustomer = deleteCustomer;
 /**
  * Retrieve customers with upcoming renewal dates.
  */
-const getRenewalReminderList = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+const getProductRenewals = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
-        const adminId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) === "admin" ? req.user.id : (_b = req.user) === null || _b === void 0 ? void 0 : _b.adminId;
-        const { reminderType = "thisMonth", startDate, endDate } = req.query;
-        let start, end;
-        const today = new Date();
-        switch (reminderType) {
-            case "thisWeek":
-                start = new Date(today);
-                start.setDate(today.getDate() - today.getDay());
-                end = new Date(start);
-                end.setDate(start.getDate() + 6);
+        // Validate admin access
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        if (!adminId) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 401, "Unauthorized: Admin access required");
+        }
+        // Parse query parameters
+        const period = req.query.period || "thisWeek"; // e.g. "thisWeek", "in15Days", "thisMonth", "nextMonth", "custom"
+        const customStart = req.query.start;
+        const customEnd = req.query.end;
+        const productFilter = req.query.product; // filter by productDetailId
+        const referenceFilter = req.query.reference; // filter by customer's reference (name or contact)
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+        // Determine the date range based on the requested period
+        let startDate, endDate;
+        const now = new Date();
+        switch (period) {
+            case "thisWeek": {
+                // Assuming week starts on Sunday
+                startDate = new Date(now);
+                startDate.setDate(now.getDate() - now.getDay());
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + 6);
+                endDate.setHours(23, 59, 59, 999);
                 break;
-            case "in15Days":
-                start = new Date();
-                end = new Date();
-                end.setDate(start.getDate() + 15);
+            }
+            case "in15Days": {
+                startDate = new Date(now);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(now);
+                endDate.setDate(now.getDate() + 15);
+                endDate.setHours(23, 59, 59, 999);
                 break;
-            case "nextMonth":
-                start = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-                end = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+            }
+            case "thisMonth": {
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                endDate.setHours(23, 59, 59, 999);
                 break;
-            case "custom":
-                if (!startDate || !endDate) {
-                    return (0, responseHandler_1.sendErrorResponse)(res, 400, "Start date and end date are required for custom range");
+            }
+            case "nextMonth": {
+                startDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                endDate = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+                endDate.setHours(23, 59, 59, 999);
+                break;
+            }
+            case "custom": {
+                if (!customStart || !customEnd) {
+                    return (0, responseHandler_1.sendErrorResponse)(res, 400, "Custom period requires start and end dates");
                 }
-                start = new Date(String(startDate));
-                end = new Date(String(endDate));
+                startDate = new Date(customStart);
+                endDate = new Date(customEnd);
+                startDate.setHours(0, 0, 0, 0);
+                endDate.setHours(23, 59, 59, 999);
                 break;
-            default: // "thisMonth"
-                start = new Date(today.getFullYear(), today.getMonth(), 1);
-                end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            }
+            default: {
+                // Default to "thisWeek"
+                startDate = new Date(now);
+                startDate.setDate(now.getDate() - now.getDay());
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + 6);
+                endDate.setHours(23, 59, 59, 999);
+                break;
+            }
         }
-        const query = { adminId, nextRenewalDate: { $gte: start, $lte: end } };
-        // Use the Mongoose model so the virtual getter decrypts the data.
-        const customers = yield customerModel_1.default.find(query);
-        // console.log(customers)
-        if (!customers || customers.length === 0) {
-            return (0, responseHandler_1.sendSuccessResponse)(res, 200, "No customers found for renewal reminder!");
+        // Build the filter for product renewals.
+        const productFilterQuery = {
+            adminId,
+            renewalDate: { $gte: startDate, $lte: endDate },
+            renewalCancelled: false,
+        };
+        // If filtering by product, add productDetailId to the query.
+        if (productFilter) {
+            productFilterQuery.productDetailId = productFilter;
         }
-        // Decrypt each customer's data for the response.
-        const result = customers.map((cust) => {
-            const decryptedData = cust.data;
-            return Object.assign({ _id: cust._id, adminId: cust.adminId, nextRenewalDate: cust.nextRenewalDate }, decryptedData);
+        // If filtering by reference, find matching customer IDs first.
+        if (referenceFilter) {
+            let customerQuery;
+            if (mongoose_1.default.Types.ObjectId.isValid(referenceFilter)) {
+                // Treat as a referenceId
+                customerQuery = { adminId, "referenceDetail.referenceId": referenceFilter };
+            }
+            else {
+                // Treat as a reference name or contact
+                customerQuery = {
+                    adminId,
+                    $or: [
+                        { "referenceDetail.referenceName": { $regex: referenceFilter, $options: "i" } },
+                        { "referenceDetail.referenceContact": { $regex: referenceFilter, $options: "i" } }
+                    ]
+                };
+            }
+            // Find matching customers based on the query
+            const matchingCustomers = yield customerModel_1.default.find(customerQuery).select("_id");
+            const customerIds = matchingCustomers.map((customer) => customer._id);
+            // Apply filter to products based on the matching customer IDs
+            productFilterQuery.customerId = { $in: customerIds };
+        }
+        // Get total count for pagination.
+        const total = yield productModel_1.default.countDocuments(productFilterQuery);
+        // Fetch products with all related population.
+        const products = yield productModel_1.default.find(productFilterQuery)
+            .populate({
+            path: "productDetailId",
+            model: "ProductDetail",
+        })
+            .populate({
+            path: "customerId",
+            populate: [
+                {
+                    path: "referenceDetail.referenceId",
+                    model: "StaffUser",
+                },
+                {
+                    path: "adminId",
+                },
+            ],
+        })
+            .populate("adminId")
+            .sort({ renewalDate: 1 })
+            .skip(skip)
+            .limit(limit)
+            .exec();
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Product renewals fetched successfully", {
+            products,
+            total,
+            page,
+            limit,
         });
-        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Renewal reminders fetched successfully", { customers: result });
     }
     catch (error) {
-        console.error("Error fetching renewal reminders:", error);
-        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", { error: error.message });
+        console.error("Error fetching product renewals:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal server error", error);
     }
 });
-exports.getRenewalReminderList = getRenewalReminderList;
+exports.getProductRenewals = getProductRenewals;
 /**
  * Import customers from CSV or Excel file.
  */
 const importCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
+        // Ensure request is made by an authenticated admin.
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        if (!adminId) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 401, "Unauthorized: Admin access required");
+        }
+        // console.log("file", req.file);
+        // Ensure a file was uploaded.
         if (!req.file) {
-            return res.status(400).json({ error: "No file uploaded" });
+            return (0, responseHandler_1.sendErrorResponse)(res, 400, "File is required for bulk upload");
         }
         const fileBuffer = req.file.buffer;
         const fileName = req.file.originalname;
         let customerRecords = [];
-        // Determine file type based on the extension.
+        // Parse CSV file.
         if (fileName.endsWith(".csv")) {
             // Convert buffer to string and parse CSV.
             const csvString = fileBuffer.toString("utf-8");
             customerRecords = yield (0, csvtojson_1.default)().fromString(csvString);
         }
+        // Parse XLSX or XLS file.
         else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
             // Read Excel file and convert the first worksheet to JSON.
             const workbook = xlsx_1.default.read(fileBuffer, { type: "buffer" });
@@ -239,43 +493,35 @@ const importCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function
             customerRecords = xlsx_1.default.utils.sheet_to_json(worksheet);
         }
         else {
-            return res.status(400).json({ error: "Unsupported file format" });
+            return (0, responseHandler_1.sendErrorResponse)(res, 400, "Unsupported file format. Only CSV and XLSX are allowed.");
         }
-        // Map each record to the expected ICustomerData format.
-        // Adjust field names if your CSV/Excel headers differ.
-        const customersToInsert = customerRecords.map((record) => {
-            var _a;
-            const customerData = {
-                companyName: record.companyName.toUpperCase() || record.CompanyName.toUpperCase(),
-                contactPerson: record.contactPerson.toUpperCase() || record.ContactPerson.toUpperCase(),
-                mobileNumber: record.mobileNumber || record.MobileNumber,
-                email: record.email || record.Email,
-                tallySerialNo: record.tallySerialNo || record.TallySerialNo,
-                // Convert string values to booleans if needed.
-                prime: record.prime === "true" || record.prime === true || false,
-                blacklisted: record.blacklisted === "true" ||
-                    record.blacklisted === true ||
-                    false,
-                remark: record.remark || record.Remark,
-                // If there are any dynamic fields or products, you can add them here.
-                // products: record.products ? JSON.parse(record.products) : undefined,
-                // dynamicFields: record.dynamicFields ? JSON.parse(record.dynamicFields) : undefined,
-            };
-            return new customerModel_1.default({
-                // Assuming you have the authenticated admin user in req.user.
-                adminId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id,
-                data: customerData,
-            });
-        });
-        // Bulk insert customers into the database.
-        yield customerModel_1.default.insertMany(customersToInsert);
-        res.json({
-            message: `${customersToInsert.length} customers imported successfully`,
+        // Map file data to Customer documents.
+        // Note: The file is expected to have the following headers:
+        // companyName, contactPerson, mobileNumber, email, tallySerialNo, prime, blacklisted, remark
+        const customers = customerRecords.map((record) => ({
+            adminId,
+            companyName: record.companyName,
+            contactPerson: record.contactPerson,
+            mobileNumber: record.mobileNumber,
+            email: record.email,
+            tallySerialNo: record.tallySerialNo,
+            prime: record.prime
+                ? String(record.prime).toLowerCase() === "true"
+                : false,
+            blacklisted: record.blacklisted
+                ? String(record.blacklisted).toLowerCase() === "true"
+                : false,
+            remark: record.remark || "",
+        }));
+        // Bulk insert customers.
+        const insertedCustomers = yield customerModel_1.default.insertMany(customers);
+        return (0, responseHandler_1.sendSuccessResponse)(res, 201, "Bulk customers added successfully", {
+            count: insertedCustomers.length,
         });
     }
     catch (error) {
-        console.error("Error importing customers:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        console.error("Error in bulk adding customers:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal server error", error);
     }
 });
 exports.importCustomers = importCustomers;

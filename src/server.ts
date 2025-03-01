@@ -18,7 +18,7 @@ const port = process.env.PORT || 5000;
 
 app.use(cors({
   // origin: "*", // Allow requests only from this origin
-  origin: ["https://dashboard-nine-snowy-33.vercel.app", "http://localhost:5173"], // Allow requests only from this origin
+  origin: ["https://dashboard-nine-snowy-33.vercel.app", "http://localhost:5173", "http://localhost:5174"], // Allow requests only from this origin
   methods: ["GET", "POST", "PUT", "DELETE"], // Allow specific HTTP methods
   allowedHeaders: ["Content-Type", "Authorization"] // Allow specific headers
 }));

@@ -1,170 +1,111 @@
-// models/Customer.ts
+// src/models/customer/customerModel.ts
 import mongoose, { Schema, Document } from "mongoose";
-import {
-  encryptData,
-  decryptData,
-  computeBlindIndex,
-} from "../../utils/encryption";
+import { ICustomer } from "../../utils/interfaces";
 
-/**
- * Customer data interface.
- * Note: dynamicFields and products can hold additional dynamic data.
- */
-export interface ICustomerData {
-  companyName: string;
-  contactPerson: string;
-  mobileNumber: string;
-  email: string;
-  tallySerialNo: string;
-  prime: boolean;
-  blacklisted: boolean;
-  remark?: string;
-  products?: Array<{ [key: string]: any }>;
-  dynamicFields?: { [key: string]: any };
-}
-
-export interface ICustomer extends Document {
-  adminId: mongoose.Types.ObjectId;
-  keyId?: mongoose.Types.ObjectId;
-  encryptedData: string;
-  mobileNumberIndex: string;
-  contactPersonIndex: string;
-  companyNameIndex: string;
-  emailIndex: string;
-  tallySerialNoIndex: string;
-  nextRenewalDate?: Date[];
-  data: ICustomerData;
-}
-
-const CustomerSchema: Schema<ICustomer> = new Schema(
+const customerSchema = new Schema<ICustomer>(
   {
-    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    keyId: { type: Schema.Types.ObjectId, required: false },
-    encryptedData: { type: String, required: true },
-    mobileNumberIndex: { type: String, required: true, index: true },
-    contactPersonIndex: { type: String, required: true, index: true },
-    companyNameIndex: { type: String, required: true, index: true },
-    emailIndex: { type: String, required: true, index: true },
-    tallySerialNoIndex: { type: String, required: true, index: true },
-    nextRenewalDate: { type: [Date], index: true },
+    adminId: { type: Schema.Types.ObjectId, ref: "AdminUser", required: true },
+    companyName: { type: String, required: true },
+    contactPerson: { type: String, required: true },
+    mobileNumber: {
+      type: String,
+      required: true,
+      unique: true,
+      match: /^[0-9]{10}$/,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      match: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+    },
+    tallySerialNo: {
+      type: String,
+      required: true,
+      match: [/^[0-9]{9}$/, "Tally Serial No. must be 9 digits"],
+    },
+    prime: { type: Boolean, default: false },
+    blacklisted: { type: Boolean, default: false },
+    remark: { type: String },
+    dynamicFields: {
+      type: Map,
+      of: Schema.Types.Mixed,
+      default: {},
+    },
+    referenceDetail: {
+      referenceId: { type: Schema.Types.ObjectId, ref: "StaffUser" },
+      referenceName: { type: String },
+      referenceContact: { type: String },
+      remark: { type: String },
+    },
   },
   { timestamps: true }
 );
 
-// Virtual field "data" handles encryption on set and decryption on get.
-CustomerSchema.virtual("data")
-  .get(function (this: ICustomer) {
-    try {
-      return JSON.parse(decryptData(this.encryptedData));
-    } catch (error) {
-      console.error("Decryption error:", error);
-      throw new Error("Failed to decrypt customer data.");
-    }
-  })
-  .set(function (this: ICustomer, value: ICustomerData) {
-    this.encryptedData = encryptData(JSON.stringify(value));
-    this.mobileNumberIndex = computeBlindIndex(value.mobileNumber);
-    this.contactPersonIndex = computeBlindIndex(value.contactPerson);
-    this.companyNameIndex = computeBlindIndex(value.companyName);
-    this.emailIndex = computeBlindIndex(value.email);
-    this.tallySerialNoIndex = computeBlindIndex(value.tallySerialNo);
-  });
+// Text index to boost full-text search performance
+customerSchema.index(
+  {
+    companyName: "text",
+    contactPerson: "text",
+    mobileNumber: "text",
+    email: "text",
+    tallySerialNo: "text",
+  },
+  { default_language: "english" }
+);
 
-// Pre-save hook to recalc blind indexes and compute next renewal date
-CustomerSchema.pre<ICustomer>("save", function (next) {
-  try {
-    const data: ICustomerData = JSON.parse(decryptData(this.encryptedData));
-    this.mobileNumberIndex = computeBlindIndex(data.mobileNumber);
-    this.contactPersonIndex = computeBlindIndex(data.contactPerson);
-    this.companyNameIndex = computeBlindIndex(data.companyName);
-    this.emailIndex = computeBlindIndex(data.email);
-    this.tallySerialNoIndex = computeBlindIndex(data.tallySerialNo);
+// Index for filtering (and sharding if needed)
+customerSchema.index({ adminId: 1 });
 
-    // If products have a renewalDate, set the nextRenewalDate for faster queries.
-    if (data.products && Array.isArray(data.products)) {
-      const renewalDates = data.products
-        .filter((p: any) => p.renewalDate)
-        .map((p: any) => new Date(p.renewalDate));
-      if (renewalDates.length > 0) {
-        this.nextRenewalDate = renewalDates;
-      }
-    }
-    next();
-  } catch (error: any) {
-    next(error);
-  }
+// Virtual populate: Link customer to its products (child documents)
+customerSchema.virtual("products", {
+  ref: "Product",
+  localField: "_id",
+  foreignField: "customerId",
 });
 
-const Customer = mongoose.model<ICustomer>("Customer", CustomerSchema);
+// Instance method for bulk renewal updates
+customerSchema.methods.updateRenewals = async function () {
+  const currentDate = new Date();
+  const startOfDay = new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth(),
+    currentDate.getDate()
+  );
+  const endOfDay = new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth(),
+    currentDate.getDate(),
+    23,
+    59,
+    59,
+    999
+  );
+
+  const Product = mongoose.model("Product");
+  await Product.updateMany(
+    {
+      customerId: this._id,
+      renewalDate: { $gte: startOfDay, $lte: endOfDay },
+      renewalCancelled: false,
+    },
+    [
+      {
+        $set: {
+          purchaseDate: "$renewalDate",
+          autoUpdated: true,
+          // Example logic: push the renewal date forward by the interval between purchase and renewal dates.
+          renewalDate: {
+            $add: ["$renewalDate", { $subtract: ["$renewalDate", "$purchaseDate"] }],
+          },
+        },
+      },
+    ]
+  );
+  return this.save();
+};
+
+customerSchema.set("toJSON", { virtuals: true });
+
+const Customer = mongoose.model<ICustomer>("Customer", customerSchema);
 export default Customer;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // models/customer/customerModel.ts
-// import mongoose, { Schema, Document } from "mongoose";
-
-// export interface ICustomerData {
-//   companyName: string;
-//   contactPerson: string;
-//   mobileNumber: string;
-//   email: string;
-//   tallySerialNo: string;
-//   prime: boolean;
-//   blacklisted: boolean;
-//   remark?: string;
-//   products?: Array<{ [key: string]: any }>;
-//   dynamicFields?: { [key: string]: any };
-// }
-
-// export interface ICustomer extends Document, ICustomerData {
-//   adminId: mongoose.Types.ObjectId;
-//   nextRenewalDate?: Date;
-// }
-
-// const CustomerSchema: Schema<ICustomer> = new Schema(
-//   {
-//     adminId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-//     companyName: { type: String, required: true },
-//     contactPerson: { type: String, required: true },
-//     mobileNumber: { type: String, required: true },
-//     email: { type: String, required: true },
-//     tallySerialNo: { type: String, required: true },
-//     prime: { type: Boolean, required: true },
-//     blacklisted: { type: Boolean, required: true },
-//     remark: { type: String },
-//     products: { type: [Schema.Types.Mixed] },
-//     dynamicFields: { type: Schema.Types.Mixed },
-//     nextRenewalDate: { type: Date, index: true },
-//   },
-//   { timestamps: true }
-// );
-
-// // Optional: Update nextRenewalDate based on the earliest renewalDate in products.
-// CustomerSchema.pre<ICustomer>("save", function (next) {
-//   if (this.products && Array.isArray(this.products)) {
-//     const renewalDates = this.products
-//       .filter((p: any) => p.renewalDate)
-//       .map((p: any) => new Date(p.renewalDate).getTime());
-//     if (renewalDates.length > 0) {
-//       this.nextRenewalDate = new Date(Math.min(...renewalDates));
-//     }
-//   }
-//   next();
-// });
-
-// const Customer = mongoose.model<ICustomer>("Customer", CustomerSchema);
-// export default Customer;

@@ -39,32 +39,42 @@ export interface ICode extends Document {
   expiresAt: Date;
 }
 
-export interface IProduct  {
-  productName: string;
+export interface IProduct extends Document {
+  customerId: mongoose.Types.ObjectId;
+  adminId: mongoose.Types.ObjectId;
+  // Reference to a static ProductDetail document.
+  productDetailId: mongoose.Types.ObjectId;
   purchaseDate: Date;
   renewalDate?: Date;
   details?: string;
-  reference?: boolean;
-  referenceDetail?: {
-    referenceId: mongoose.Types.ObjectId;
-    referenceName: string;
-    referenceContact: string;
-    remark?: string;
-  };
+  autoUpdated?: boolean;
+  updatedBy?: mongoose.Types.ObjectId;
+  renewalCancelled?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface ICustomer extends Document {
-  adminId: mongoose.Types.ObjectId;
-  companyName: string;
-  contactPerson: string;
-  mobileNumber: string;
-  email: string;
-  tallySerialNo: string;
-  remark: string;
-  prime: boolean;
-  blacklisted: boolean;
-  products: IProduct[];
-  dynamicFields: Map<string, any>;
+  adminId?: mongoose.Types.ObjectId;
+  companyName?: string;
+  contactPerson?: string;
+  mobileNumber?: string;
+  email?: string;
+  tallySerialNo?: string;
+  prime?: boolean;
+  blacklisted?: boolean;
+  remark?: string;
+  // dynamicFields can be used to store custom key/value pairs.
+  dynamicFields?: Map<string, any>;
+  // referenceDetail holds optional information about who referred this customer.
+  referenceDetail?: {
+    referenceId?: mongoose.Types.ObjectId;
+    referenceName?: string;
+    referenceContact?: string;
+    remark?: string;
+  };
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 

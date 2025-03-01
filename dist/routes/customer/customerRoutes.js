@@ -15,11 +15,12 @@ const asyncHandler = (fn) => (req, res, next) => {
 };
 router.post("/importcustomers", upload.single("file"), authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customerController_1.importCustomers));
 router.post("/customfield", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customFieldController_1.addCustomField));
+router.post("/productDetail", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customerController_1.addProductDetail));
 router.get("/customfield", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin", "employee"), asyncHandler(customFieldController_1.getCustomFields));
 router.put("/customfield/:id", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customFieldController_1.updateCustomField));
 router.delete("/customfield/:id", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customFieldController_1.deleteCustomField));
 router.post("/customer", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "superadmin"), asyncHandler(customerController_1.addCustomer));
-router.get('/customer/product', authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)('admin', "employee"), asyncHandler(customerController_1.getRenewalReminderList));
+router.get('/customer/product', authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)('admin', "employee"), asyncHandler(customerController_1.getProductRenewals));
 router.get("/customer", authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)("admin", "employee", "superadmin"), asyncHandler(customerController_1.searchCustomer));
 router.delete('/customer/:id', authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)('admin'), asyncHandler(customerController_1.deleteCustomer));
 router.put('/customer/:id', authMiddleware_1.authenticateUser, (0, authMiddleware_1.authorizeRoles)('admin'), asyncHandler(customerController_1.updateCustomer));
