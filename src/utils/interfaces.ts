@@ -67,6 +67,7 @@ export interface ICustomer extends Document {
   // dynamicFields can be used to store custom key/value pairs.
   dynamicFields?: Map<string, any>;
   // referenceDetail holds optional information about who referred this customer.
+  hasReference: boolean;
   referenceDetail?: {
     referenceId?: mongoose.Types.ObjectId;
     referenceName?: string;

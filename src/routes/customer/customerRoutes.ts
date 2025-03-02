@@ -1,6 +1,6 @@
 import express from "express";
 import { Request, Response, NextFunction } from "express";
-import { addProductDetail, addCustomer, searchCustomer, deleteCustomer, updateCustomer, getProductRenewals, importCustomers } from "../../controller/customer/customerController";
+import { addProductDetail, listProductDetails, addCustomer, searchCustomer, deleteCustomer, updateCustomer, getProductRenewals, importCustomers } from "../../controller/customer/customerController";
 import { addCustomField, getCustomFields, updateCustomField, deleteCustomField } from "../../controller/customer/customFieldController";
 import { authenticateUser, authorizeRoles } from "../../middlewares/authMiddleware";
 import multer from "multer";
@@ -21,7 +21,6 @@ router.post("/importcustomers", upload.single("file"), authenticateUser, authori
 
 router.post("/customfield", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(addCustomField));
 
-router.post("/productDetail", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(addProductDetail));
 
 router.get("/customfield", authenticateUser, authorizeRoles("admin", "superadmin", "employee"), asyncHandler(getCustomFields));
 
@@ -30,6 +29,8 @@ router.put("/customfield/:id", authenticateUser, authorizeRoles("admin", "supera
 router.delete("/customfield/:id", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(deleteCustomField));
 
 
+router.post("/productDetail", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(addProductDetail));
+router.get("/productDetail", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(listProductDetails));
 
 
 router.post("/customer", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(addCustomer));

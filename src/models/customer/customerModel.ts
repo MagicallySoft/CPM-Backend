@@ -32,6 +32,7 @@ const customerSchema = new Schema<ICustomer>(
       of: Schema.Types.Mixed,
       default: {},
     },
+    hasReference: {type: Boolean, default: false},
     referenceDetail: {
       referenceId: { type: Schema.Types.ObjectId, ref: "StaffUser" },
       referenceName: { type: String },

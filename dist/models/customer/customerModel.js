@@ -73,6 +73,7 @@ const customerSchema = new mongoose_1.Schema({
         of: mongoose_1.Schema.Types.Mixed,
         default: {},
     },
+    hasReference: { type: Boolean, default: false },
     referenceDetail: {
         referenceId: { type: mongoose_1.Schema.Types.ObjectId, ref: "StaffUser" },
         referenceName: { type: String },

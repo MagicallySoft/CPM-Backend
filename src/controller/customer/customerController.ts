@@ -57,16 +57,60 @@ export const addProductDetail = async (req: Request, res: Response) => {
     );
   } catch (error: any) {
     console.error("Error adding product detail:", error);
+    if (error.code === 11000) {
+      const duplicateField = Object.keys(error.keyValue)[0];
+      const duplicateValue = error.keyValue[duplicateField];
+      return sendErrorResponse(
+        res,
+        400,
+        `${duplicateField} "${duplicateValue}" already exists.`
+      );
+    }
     return sendErrorResponse(res, 500, "Internal Server Error", {
       error: error.message,
     });
   }
 };
 
+export const listProductDetails = async (req: Request, res: Response) => {
+  try {
+    // Verify that the request is made by an authenticated admin.
+    const adminId = req.user?.id;
+    if (!adminId) {
+      return sendErrorResponse(res, 401, "Unauthorized: Admin access required.");
+    }
+
+    // Extract the optional search query parameter.
+    const search = req.query.search as string;
+
+    // Build the filter: Only include records for the authenticated admin.
+    const filter: any = { adminId };
+
+    // If a search query is provided, apply a text search.
+    if (search) {
+      filter.$text = { $search: search };
+    }
+
+    // Retrieve matching ProductDetail records, sorted by creation date (newest first).
+    const productDetails = await ProductDetail.find(filter)
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return sendSuccessResponse(
+      res,
+      200,
+      "Product details fetched successfully",
+      productDetails
+    );
+  } catch (error: any) {
+    console.error("Error listing product details:", error);
+    return sendErrorResponse(res, 500, "Internal Server Error", { error: error.message });
+  }
+};
+
 /**
  * Add a new customer.
- * The virtual field "data" triggers encryption and blind index calculation.
- */
+* */
 export const addCustomer = async (
   req: Request,
   res: Response,
@@ -94,6 +138,7 @@ export const addCustomer = async (
       blacklisted,
       remark,
       dynamicFields,
+      hasReference,
       referenceDetail,
       products, // products should be an array of product objects
     } = req.body;
@@ -108,9 +153,10 @@ export const addCustomer = async (
     ) {
       return sendErrorResponse(res, 400, "Missing required customer fields.");
     }
-
+    // console.log(hasReference)
+    // console.log(referenceDetail)
     // Validate referenceDetail if provided: must have either referenceId or both referenceName and referenceContact.
-    if (referenceDetail) {
+    if (hasReference && referenceDetail) {
       const { referenceId, referenceName, referenceContact } = referenceDetail;
       if (!referenceId && (!referenceName || !referenceContact)) {
         return sendErrorResponse(
@@ -133,6 +179,7 @@ export const addCustomer = async (
       blacklisted: blacklisted || false,
       remark,
       dynamicFields,
+      hasReference,
       referenceDetail,
     });
 
@@ -179,6 +226,15 @@ export const addCustomer = async (
     return sendSuccessResponse(res, 200, "Customer Added", populatedCustomer);
   } catch (error: any) {
     console.error("Error adding customer and products:", error);
+    if (error.code === 11000) {
+      const duplicateField = Object.keys(error.keyValue)[0];
+      const duplicateValue = error.keyValue[duplicateField];
+      return sendErrorResponse(
+        res,
+        400,
+        `${duplicateField} "${duplicateValue}" already exists.`
+      );
+    }
     return sendErrorResponse(res, 500, "Internal Server Error", {
       error: error.message,
     });
@@ -382,7 +438,7 @@ export const deleteCustomer = async (
 /**
  * Retrieve customers with upcoming renewal dates.
  */
-export const getProductRenewals = async (req: Request, res: Response, next: NextFunction) => {
+export const getProductRenewals = async (req: Request, res: Response, next: NextFunction) => {  
   try {
     // Validate admin access
     const adminId = req.user?.id;
@@ -554,7 +610,7 @@ export const importCustomers = async (req: MulterRequest, res: Response) => {
     const fileName = req.file.originalname;
     let customerRecords: ICustomer[] = [];
 
-    // Parse CSV file.
+    // Parse CSV file.    
     if (fileName.endsWith(".csv")) {
       // Convert buffer to string and parse CSV.
       const csvString = fileBuffer.toString("utf-8");

@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.importCustomers = exports.getProductRenewals = exports.deleteCustomer = exports.updateCustomer = exports.searchCustomer = exports.addCustomer = exports.addProductDetail = void 0;
+exports.importCustomers = exports.getProductRenewals = exports.deleteCustomer = exports.updateCustomer = exports.searchCustomer = exports.addCustomer = exports.listProductDetails = exports.addProductDetail = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const csvtojson_1 = __importDefault(require("csvtojson"));
 const xlsx_1 = __importDefault(require("xlsx"));
@@ -52,16 +52,48 @@ const addProductDetail = (req, res) => __awaiter(void 0, void 0, void 0, functio
     }
     catch (error) {
         console.error("Error adding product detail:", error);
+        if (error.code === 11000) {
+            const duplicateField = Object.keys(error.keyValue)[0];
+            const duplicateValue = error.keyValue[duplicateField];
+            return (0, responseHandler_1.sendErrorResponse)(res, 400, `${duplicateField} "${duplicateValue}" already exists.`);
+        }
         return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", {
             error: error.message,
         });
     }
 });
 exports.addProductDetail = addProductDetail;
+const listProductDetails = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        // Verify that the request is made by an authenticated admin.
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        if (!adminId) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 401, "Unauthorized: Admin access required.");
+        }
+        // Extract the optional search query parameter.
+        const search = req.query.search;
+        // Build the filter: Only include records for the authenticated admin.
+        const filter = { adminId };
+        // If a search query is provided, apply a text search.
+        if (search) {
+            filter.$text = { $search: search };
+        }
+        // Retrieve matching ProductDetail records, sorted by creation date (newest first).
+        const productDetails = yield productDetailModel_1.default.find(filter)
+            .sort({ createdAt: -1 })
+            .exec();
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Product details fetched successfully", productDetails);
+    }
+    catch (error) {
+        console.error("Error listing product details:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", { error: error.message });
+    }
+});
+exports.listProductDetails = listProductDetails;
 /**
  * Add a new customer.
- * The virtual field "data" triggers encryption and blind index calculation.
- */
+* */
 const addCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
@@ -71,7 +103,7 @@ const addCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
             return (0, responseHandler_1.sendErrorResponse)(res, 401, "Unauthorized: Admin access required.");
         }
         // Extract customer fields and the products array from the request body.
-        const { companyName, contactPerson, mobileNumber, email, tallySerialNo, prime, blacklisted, remark, dynamicFields, referenceDetail, products, // products should be an array of product objects
+        const { companyName, contactPerson, mobileNumber, email, tallySerialNo, prime, blacklisted, remark, dynamicFields, hasReference, referenceDetail, products, // products should be an array of product objects
          } = req.body;
         // Validate required customer fields.
         if (!companyName ||
@@ -81,8 +113,10 @@ const addCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
             !tallySerialNo) {
             return (0, responseHandler_1.sendErrorResponse)(res, 400, "Missing required customer fields.");
         }
+        // console.log(hasReference)
+        // console.log(referenceDetail)
         // Validate referenceDetail if provided: must have either referenceId or both referenceName and referenceContact.
-        if (referenceDetail) {
+        if (hasReference && referenceDetail) {
             const { referenceId, referenceName, referenceContact } = referenceDetail;
             if (!referenceId && (!referenceName || !referenceContact)) {
                 return (0, responseHandler_1.sendErrorResponse)(res, 400, "Invalid referenceDetail: provide either referenceId or both referenceName and referenceContact.");
@@ -100,6 +134,7 @@ const addCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
             blacklisted: blacklisted || false,
             remark,
             dynamicFields,
+            hasReference,
             referenceDetail,
         });
         const savedCustomer = yield newCustomer.save();
@@ -142,6 +177,11 @@ const addCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
     }
     catch (error) {
         console.error("Error adding customer and products:", error);
+        if (error.code === 11000) {
+            const duplicateField = Object.keys(error.keyValue)[0];
+            const duplicateValue = error.keyValue[duplicateField];
+            return (0, responseHandler_1.sendErrorResponse)(res, 400, `${duplicateField} "${duplicateValue}" already exists.`);
+        }
         return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", {
             error: error.message,
         });
@@ -478,7 +518,7 @@ const importCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function
         const fileBuffer = req.file.buffer;
         const fileName = req.file.originalname;
         let customerRecords = [];
-        // Parse CSV file.
+        // Parse CSV file.    
         if (fileName.endsWith(".csv")) {
             // Convert buffer to string and parse CSV.
             const csvString = fileBuffer.toString("utf-8");

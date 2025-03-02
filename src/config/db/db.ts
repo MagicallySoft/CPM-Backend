@@ -1,9 +1,9 @@
-import mongoose from 'mongoose';
+import mongoose from 'mongoose';               
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/CPM';
+const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/CPM';  
 
 mongoose.connect(mongoURI)
   .then(() => {
