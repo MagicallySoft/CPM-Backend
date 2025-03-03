@@ -36,7 +36,7 @@ router.get('/customer/product', authenticateUser, authorizeRoles('admin', "emplo
 router.put('/customer/product/:id', authenticateUser, authorizeRoles('admin', "employee"), asyncHandler(updateProduct));
 router.delete('/customer/product/:id', authenticateUser, authorizeRoles('admin', "employee"), asyncHandler(deleteProduct));
 
-router.get('/customer/product', authenticateUser, authorizeRoles('admin', "employee"), asyncHandler(getProductRenewals));
+router.get('/customer/remindproduct', authenticateUser, authorizeRoles('admin', "employee"), asyncHandler(getProductRenewals));
 
 router.post("/customer", authenticateUser, authorizeRoles("admin", "superadmin"), asyncHandler(addCustomer));
 router.get("/customer", authenticateUser, authorizeRoles("admin", "employee", "superadmin"), asyncHandler(searchCustomer));
