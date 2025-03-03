@@ -8,11 +8,22 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.importCustomers = exports.getProductRenewals = exports.deleteCustomer = exports.updateCustomer = exports.searchCustomer = exports.addCustomer = exports.listProductDetails = exports.addProductDetail = void 0;
+exports.importCustomers = exports.getProductRenewals = exports.deleteCustomer = exports.deleteProduct = exports.updateProduct = exports.updateCustomer = exports.listProducts = exports.searchCustomer = exports.addCustomer = exports.listProductDetails = exports.addProductDetail = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const csvtojson_1 = __importDefault(require("csvtojson"));
 const xlsx_1 = __importDefault(require("xlsx"));
@@ -87,13 +98,15 @@ const listProductDetails = (req, res) => __awaiter(void 0, void 0, void 0, funct
     }
     catch (error) {
         console.error("Error listing product details:", error);
-        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", { error: error.message });
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", {
+            error: error.message,
+        });
     }
 });
 exports.listProductDetails = listProductDetails;
 /**
  * Add a new customer.
-* */
+ * */
 const addCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
@@ -158,7 +171,7 @@ const addCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
                         : undefined,
                     details: product.details,
                     autoUpdated: product.autoUpdated || false,
-                    updatedBy: product.updatedBy,
+                    updatedBy: adminId,
                     renewalCancelled: product.renewalCancelled || false,
                 });
             });
@@ -285,28 +298,85 @@ const searchCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
 });
 exports.searchCustomer = searchCustomer;
 /**
+ * List of Product.
+ * */
+const listProducts = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const { customerId } = req.query;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        const query = {};
+        if (customerId)
+            query.customerId = customerId;
+        if (adminId)
+            query.adminId = adminId;
+        const products = yield productModel_1.default.find(query)
+            .populate("customerId") // Populate customer details
+            .populate("adminId") // Populate admin details
+            .populate("productDetailId") // Populate product detail info
+            .populate({
+            path: "renewalHistory.renewedBy", // Populate renewedBy field inside renewalHistory
+            model: "AdminUser",
+        });
+        if (!products) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 404, "Product not found");
+        }
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Products fetched successfully", products);
+    }
+    catch (error) {
+        console.error("Error fetching customers:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal server error", error);
+    }
+});
+exports.listProducts = listProducts;
+/**
  * Update customer data.
- * Merges new data with existing decrypted data and re-encrypts.
+ * The updateCustomer function updates a customer's data in the database, including adding new products if provided. It extracts the products and other customer data from the request body, updates the customer information, and adds new products if they have valid details. The updated customer information, along with populated related data, is then returned in the response.
  */
 const updateCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
         const customerId = req.params.id;
         const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
-        const newData = req.body;
-        // // Find the customer document by ID and ensure the admin owns it.
-        // const customer = await Customer.findOne({ _id: customerId, adminId });
-        // if (!customer) {
-        //   return sendErrorResponse(res, 404, "Customer not found or unauthorized");
-        // }
-        // // Merge new data with the existing decrypted data.
-        // const currentData = customer.data;
-        // const updatedData = { ...currentData, ...newData };
-        // customer.data = updatedData; // Triggers re-encryption and blind index recalculation
-        // await customer.save();
-        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Customer updated successfully"
-        // customer
-        );
+        // Destructure the products array from the request body and keep the rest as customer update data.
+        const _b = req.body, { products } = _b, customerData = __rest(_b, ["products"]);
+        // Update the customer document with provided data.
+        const updatedCustomer = yield customerModel_1.default.findByIdAndUpdate(customerId, customerData, { new: true });
+        if (!updatedCustomer) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 404, "Customer not found");
+        }
+        // If new products are provided, add them.
+        let newProducts = [];
+        if (Array.isArray(products) && products.length > 0) {
+            newProducts = yield Promise.all(products.map((product) => __awaiter(void 0, void 0, void 0, function* () {
+                // Validate that each product has a productDetailId.
+                if (!product.productDetailId) {
+                    throw new Error("Each new product must have a productDetailId.");
+                }
+                // Create a new product document.
+                const newProduct = new productModel_1.default({
+                    customerId: updatedCustomer._id,
+                    adminId, // Admin performing the operation.
+                    productDetailId: product.productDetailId,
+                    purchaseDate: product.purchaseDate
+                        ? new Date(product.purchaseDate)
+                        : new Date(),
+                    renewalDate: product.renewalDate
+                        ? new Date(product.renewalDate)
+                        : undefined,
+                    details: product.details,
+                    autoUpdated: product.autoUpdated || false,
+                    updatedBy: adminId,
+                    renewalCancelled: product.renewalCancelled || false,
+                });
+                return yield newProduct.save();
+            })));
+        }
+        // Optionally, re-populate the customer document with related products and admin details.
+        const populatedCustomer = yield customerModel_1.default.findById(customerId)
+            .populate("products") // Assumes a virtual populate is set up.
+            .populate("adminId");
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Customer updated successfully", populatedCustomer);
     }
     catch (error) {
         console.error("Update Customer Error:", error);
@@ -316,6 +386,60 @@ const updateCustomer = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
     }
 });
 exports.updateCustomer = updateCustomer;
+/**
+ * Update Product.
+ */
+const updateProduct = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const productId = req.params.id;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        // Exclude productDetailId and purchaseDate from update fields.
+        const _b = req.body, { productDetailId, purchaseDate } = _b, updateData = __rest(_b, ["productDetailId", "purchaseDate"]);
+        // Optionally, record who is making the update.
+        updateData.updatedBy = adminId;
+        const updatedProduct = yield productModel_1.default.findByIdAndUpdate(productId, updateData, { new: true });
+        if (!updatedProduct) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 404, "Product not found");
+        }
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Product updated successfully", updatedProduct);
+    }
+    catch (error) {
+        console.error("Update Product Error:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", {
+            error: error.message,
+        });
+    }
+});
+exports.updateProduct = updateProduct;
+/**
+ * Delete a Product.
+ */
+const deleteProduct = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const productId = req.params.id;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        // Optionally, check if the admin is authorized to delete the product
+        // Check if the product exists
+        const product = yield productModel_1.default.findById(productId);
+        if (!product) {
+            return (0, responseHandler_1.sendErrorResponse)(res, 404, "Product not found");
+        }
+        // Remove the product document from the database
+        yield product.deleteOne();
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Product deleted successfully", {
+            id: productId,
+        });
+    }
+    catch (error) {
+        console.error("Delete Product Error:", error);
+        return (0, responseHandler_1.sendErrorResponse)(res, 500, "Internal Server Error", {
+            error: error.message,
+        });
+    }
+});
+exports.deleteProduct = deleteProduct;
 /**
  * Delete a customer.
  */
@@ -373,6 +497,7 @@ const getProductRenewals = (req, res, next) => __awaiter(void 0, void 0, void 0,
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
+        // console.log("--->",period)
         // Determine the date range based on the requested period
         let startDate, endDate;
         const now = new Date();
@@ -443,16 +568,29 @@ const getProductRenewals = (req, res, next) => __awaiter(void 0, void 0, void 0,
             let customerQuery;
             if (mongoose_1.default.Types.ObjectId.isValid(referenceFilter)) {
                 // Treat as a referenceId
-                customerQuery = { adminId, "referenceDetail.referenceId": referenceFilter };
+                customerQuery = {
+                    adminId,
+                    "referenceDetail.referenceId": referenceFilter,
+                };
             }
             else {
                 // Treat as a reference name or contact
                 customerQuery = {
                     adminId,
                     $or: [
-                        { "referenceDetail.referenceName": { $regex: referenceFilter, $options: "i" } },
-                        { "referenceDetail.referenceContact": { $regex: referenceFilter, $options: "i" } }
-                    ]
+                        {
+                            "referenceDetail.referenceName": {
+                                $regex: referenceFilter,
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "referenceDetail.referenceContact": {
+                                $regex: referenceFilter,
+                                $options: "i",
+                            },
+                        },
+                    ],
                 };
             }
             // Find matching customers based on the query
@@ -486,7 +624,7 @@ const getProductRenewals = (req, res, next) => __awaiter(void 0, void 0, void 0,
             .skip(skip)
             .limit(limit)
             .exec();
-        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Product renewals fetched successfully", {
+        return (0, responseHandler_1.sendSuccessResponse)(res, 200, "Product renewals fetched successfully!", {
             products,
             total,
             page,
@@ -518,7 +656,7 @@ const importCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function
         const fileBuffer = req.file.buffer;
         const fileName = req.file.originalname;
         let customerRecords = [];
-        // Parse CSV file.    
+        // Parse CSV file.
         if (fileName.endsWith(".csv")) {
             // Convert buffer to string and parse CSV.
             const csvString = fileBuffer.toString("utf-8");

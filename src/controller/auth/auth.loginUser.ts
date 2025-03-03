@@ -29,7 +29,7 @@ export const loginUser = async (req: Request, res: Response) => {
       user = await StaffUser.findOne({ email });
       userType = "StaffUser";
     }
-
+    // console.log("user--->", user);
     if (!user) {
       return sendErrorResponse(res, 401, "Invalid credentials");
     }
@@ -69,7 +69,9 @@ export const loginUser = async (req: Request, res: Response) => {
         startDate: { $lte: now },
         endDate: { $gte: now },
       });
-
+      
+      // console.log("subscription--->", subscription);
+      
       if (!subscription) {
         return sendErrorResponse(
           res,

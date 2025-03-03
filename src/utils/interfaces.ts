@@ -39,6 +39,13 @@ export interface ICode extends Document {
   expiresAt: Date;
 }
 
+export interface IRenewalHistory {
+  renewalDate: Date;
+  autoRenewed?: boolean;
+  renewedBy?: mongoose.Types.ObjectId;
+  notes?: string;
+}
+
 export interface IProduct extends Document {
   customerId: mongoose.Types.ObjectId;
   adminId: mongoose.Types.ObjectId;
@@ -50,6 +57,7 @@ export interface IProduct extends Document {
   autoUpdated?: boolean;
   updatedBy?: mongoose.Types.ObjectId;
   renewalCancelled?: boolean;
+  renewalHistory?: IRenewalHistory[];
   createdAt?: Date;
   updatedAt?: Date;
 }

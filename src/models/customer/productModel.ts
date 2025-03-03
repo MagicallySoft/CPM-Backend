@@ -2,6 +2,16 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { IProduct } from "../../utils/interfaces";
 
+const renewalHistorySchema = new Schema(
+  {
+    renewalDate: { type: Date, required: true },
+    autoRenewed: { type: Boolean, default: false },
+    renewedBy: { type: Schema.Types.ObjectId },
+    notes: { type: String },
+  },
+  { _id: false } 
+);
+
 const productSchema = new Schema<IProduct>(
   {
     customerId: { type: Schema.Types.ObjectId, ref: "Customer", required: true },
@@ -14,6 +24,7 @@ const productSchema = new Schema<IProduct>(
     autoUpdated: { type: Boolean, default: false },
     updatedBy: { type: Schema.Types.ObjectId},
     renewalCancelled: { type: Boolean, default: false },
+    renewalHistory: [renewalHistorySchema],
   },
   { timestamps: true }
 );

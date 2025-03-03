@@ -4,7 +4,7 @@ import csv from "csvtojson";
 import XLSX from "xlsx";
 import Customer from "../../models/customer/customerModel";
 import Product from "../../models/customer/productModel";
-import StaffUser from "../../models/auth/StaffUserModel"
+import StaffUser from "../../models/auth/StaffUserModel";
 import {
   sendSuccessResponse,
   sendErrorResponse,
@@ -77,7 +77,11 @@ export const listProductDetails = async (req: Request, res: Response) => {
     // Verify that the request is made by an authenticated admin.
     const adminId = req.user?.id;
     if (!adminId) {
-      return sendErrorResponse(res, 401, "Unauthorized: Admin access required.");
+      return sendErrorResponse(
+        res,
+        401,
+        "Unauthorized: Admin access required."
+      );
     }
 
     // Extract the optional search query parameter.
@@ -104,13 +108,15 @@ export const listProductDetails = async (req: Request, res: Response) => {
     );
   } catch (error: any) {
     console.error("Error listing product details:", error);
-    return sendErrorResponse(res, 500, "Internal Server Error", { error: error.message });
+    return sendErrorResponse(res, 500, "Internal Server Error", {
+      error: error.message,
+    });
   }
 };
 
 /**
  * Add a new customer.
-* */
+ * */
 export const addCustomer = async (
   req: Request,
   res: Response,
@@ -205,7 +211,7 @@ export const addCustomer = async (
             : undefined,
           details: product.details,
           autoUpdated: product.autoUpdated || false,
-          updatedBy: product.updatedBy,
+          updatedBy: adminId,
           renewalCancelled: product.renewalCancelled || false,
         });
       });
@@ -348,8 +354,47 @@ export const searchCustomer = async (
 };
 
 /**
+ * List of Product.
+ * */
+export const listProducts = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { customerId } = req.query;
+    const adminId = req.user?.id;
+    const query: any = {};
+    if (customerId) query.customerId = customerId;
+    if (adminId) query.adminId = adminId;
+
+    const products = await Product.find(query)
+      .populate("customerId") // Populate customer details
+      .populate("adminId") // Populate admin details
+      .populate("productDetailId") // Populate product detail info
+      .populate({
+        path: "renewalHistory.renewedBy", // Populate renewedBy field inside renewalHistory
+        model: "AdminUser",
+      });
+    if(!products){
+      return sendErrorResponse(res, 404, "Product not found");
+    }
+    
+      return sendSuccessResponse(
+        res,
+        200,
+        "Products fetched successfully",
+        products
+      );
+  } catch (error: any) {
+    console.error("Error fetching customers:", error);
+    return sendErrorResponse(res, 500, "Internal server error", error);
+  }
+};
+
+/**
  * Update customer data.
- * Merges new data with existing decrypted data and re-encrypts.
+ * The updateCustomer function updates a customer's data in the database, including adding new products if provided. It extracts the products and other customer data from the request body, updates the customer information, and adds new products if they have valid details. The updated customer information, along with populated related data, is then returned in the response.
  */
 export const updateCustomer = async (
   req: Request,
@@ -359,28 +404,137 @@ export const updateCustomer = async (
   try {
     const customerId = req.params.id;
     const adminId = req.user?.id;
-    const newData: Partial<ICustomer> = req.body;
 
-    // // Find the customer document by ID and ensure the admin owns it.
-    // const customer = await Customer.findOne({ _id: customerId, adminId });
-    // if (!customer) {
-    //   return sendErrorResponse(res, 404, "Customer not found or unauthorized");
-    // }
+    // Destructure the products array from the request body and keep the rest as customer update data.
+    const { products, ...customerData } = req.body;
 
-    // // Merge new data with the existing decrypted data.
-    // const currentData = customer.data;
-    // const updatedData = { ...currentData, ...newData };
-    // customer.data = updatedData; // Triggers re-encryption and blind index recalculation
+    // Update the customer document with provided data.
+    const updatedCustomer = await Customer.findByIdAndUpdate(
+      customerId,
+      customerData,
+      { new: true }
+    );
+    if (!updatedCustomer) {
+      return sendErrorResponse(res, 404, "Customer not found");
+    }
 
-    // await customer.save();
+    // If new products are provided, add them.
+    let newProducts: IProduct[] = [];
+    if (Array.isArray(products) && products.length > 0) {
+      newProducts = await Promise.all(
+        products.map(async (product: any) => {
+          // Validate that each product has a productDetailId.
+          if (!product.productDetailId) {
+            throw new Error("Each new product must have a productDetailId.");
+          }
+          // Create a new product document.
+          const newProduct = new Product({
+            customerId: updatedCustomer._id,
+            adminId, // Admin performing the operation.
+            productDetailId: product.productDetailId,
+            purchaseDate: product.purchaseDate
+              ? new Date(product.purchaseDate)
+              : new Date(),
+            renewalDate: product.renewalDate
+              ? new Date(product.renewalDate)
+              : undefined,
+            details: product.details,
+            autoUpdated: product.autoUpdated || false,
+            updatedBy: adminId,
+            renewalCancelled: product.renewalCancelled || false,
+          });
+          return await newProduct.save();
+        })
+      );
+    }
+
+    // Optionally, re-populate the customer document with related products and admin details.
+    const populatedCustomer = await Customer.findById(customerId)
+      .populate("products") // Assumes a virtual populate is set up.
+      .populate("adminId");
+
     return sendSuccessResponse(
       res,
       200,
-      "Customer updated successfully"
-      // customer
+      "Customer updated successfully",
+      populatedCustomer
     );
   } catch (error: any) {
     console.error("Update Customer Error:", error);
+    return sendErrorResponse(res, 500, "Internal Server Error", {
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update Product.
+ */
+export const updateProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const productId = req.params.id;
+    const adminId = req.user?.id;
+    // Exclude productDetailId and purchaseDate from update fields.
+    const { productDetailId, purchaseDate, ...updateData } = req.body;
+
+    // Optionally, record who is making the update.
+    updateData.updatedBy = adminId;
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      updateData,
+      { new: true }
+    );
+    if (!updatedProduct) {
+      return sendErrorResponse(res, 404, "Product not found");
+    }
+
+    return sendSuccessResponse(
+      res,
+      200,
+      "Product updated successfully",
+      updatedProduct
+    );
+  } catch (error: any) {
+    console.error("Update Product Error:", error);
+    return sendErrorResponse(res, 500, "Internal Server Error", {
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Delete a Product.
+ */
+export const deleteProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const productId = req.params.id;
+    const adminId = req.user?.id;
+
+    // Optionally, check if the admin is authorized to delete the product
+
+    // Check if the product exists
+    const product = await Product.findById(productId);
+    if (!product) {
+      return sendErrorResponse(res, 404, "Product not found");
+    }
+
+    // Remove the product document from the database
+    await product.deleteOne();
+
+    return sendSuccessResponse(res, 200, "Product deleted successfully", {
+      id: productId,
+    });
+  } catch (error: any) {
+    console.error("Delete Product Error:", error);
     return sendErrorResponse(res, 500, "Internal Server Error", {
       error: error.message,
     });
@@ -438,7 +592,11 @@ export const deleteCustomer = async (
 /**
  * Retrieve customers with upcoming renewal dates.
  */
-export const getProductRenewals = async (req: Request, res: Response, next: NextFunction) => {  
+export const getProductRenewals = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     // Validate admin access
     const adminId = req.user?.id;
@@ -455,7 +613,8 @@ export const getProductRenewals = async (req: Request, res: Response, next: Next
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
-
+  
+    // console.log("--->",period)
     // Determine the date range based on the requested period
     let startDate: Date, endDate: Date;
     const now = new Date();
@@ -493,7 +652,11 @@ export const getProductRenewals = async (req: Request, res: Response, next: Next
       }
       case "custom": {
         if (!customStart || !customEnd) {
-          return sendErrorResponse(res, 400, "Custom period requires start and end dates");
+          return sendErrorResponse(
+            res,
+            400,
+            "Custom period requires start and end dates"
+          );
         }
         startDate = new Date(customStart);
         endDate = new Date(customEnd);
@@ -530,22 +693,37 @@ export const getProductRenewals = async (req: Request, res: Response, next: Next
       let customerQuery;
       if (mongoose.Types.ObjectId.isValid(referenceFilter)) {
         // Treat as a referenceId
-        customerQuery = { adminId, "referenceDetail.referenceId": referenceFilter };
+        customerQuery = {
+          adminId,
+          "referenceDetail.referenceId": referenceFilter,
+        };
       } else {
         // Treat as a reference name or contact
         customerQuery = {
           adminId,
           $or: [
-            { "referenceDetail.referenceName": { $regex: referenceFilter, $options: "i" } },
-            { "referenceDetail.referenceContact": { $regex: referenceFilter, $options: "i" } }
-          ]
+            {
+              "referenceDetail.referenceName": {
+                $regex: referenceFilter,
+                $options: "i",
+              },
+            },
+            {
+              "referenceDetail.referenceContact": {
+                $regex: referenceFilter,
+                $options: "i",
+              },
+            },
+          ],
         };
       }
-      
+
       // Find matching customers based on the query
-      const matchingCustomers = await Customer.find(customerQuery).select("_id");
+      const matchingCustomers = await Customer.find(customerQuery).select(
+        "_id"
+      );
       const customerIds = matchingCustomers.map((customer) => customer._id);
-      
+
       // Apply filter to products based on the matching customer IDs
       productFilterQuery.customerId = { $in: customerIds };
     }
@@ -577,12 +755,17 @@ export const getProductRenewals = async (req: Request, res: Response, next: Next
       .limit(limit)
       .exec();
 
-    return sendSuccessResponse(res, 200, "Product renewals fetched successfully", {
-      products,
-      total,
-      page,
-      limit,
-    });
+    return sendSuccessResponse(
+      res,
+      200,
+      "Product renewals fetched successfully!",
+      {
+        products,
+        total,
+        page,
+        limit,
+      }
+    );
   } catch (error) {
     console.error("Error fetching product renewals:", error);
     return sendErrorResponse(res, 500, "Internal server error", error);
@@ -610,7 +793,7 @@ export const importCustomers = async (req: MulterRequest, res: Response) => {
     const fileName = req.file.originalname;
     let customerRecords: ICustomer[] = [];
 
-    // Parse CSV file.    
+    // Parse CSV file.
     if (fileName.endsWith(".csv")) {
       // Convert buffer to string and parse CSV.
       const csvString = fileBuffer.toString("utf-8");

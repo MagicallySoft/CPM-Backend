@@ -40,6 +40,7 @@ const loginUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             user = yield StaffUserModel_1.default.findOne({ email });
             userType = "StaffUser";
         }
+        // console.log("user--->", user);
         if (!user) {
             return (0, responseHandler_1.sendErrorResponse)(res, 401, "Invalid credentials");
         }
@@ -70,6 +71,7 @@ const loginUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 startDate: { $lte: now },
                 endDate: { $gte: now },
             });
+            // console.log("subscription--->", subscription);
             if (!subscription) {
                 return (0, responseHandler_1.sendErrorResponse)(res, 403, "Subscription expired or inactive. Please renew your subscription.");
             }

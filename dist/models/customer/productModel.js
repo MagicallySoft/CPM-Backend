@@ -35,6 +35,12 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 // src/models/product/productModel.ts
 const mongoose_1 = __importStar(require("mongoose"));
+const renewalHistorySchema = new mongoose_1.Schema({
+    renewalDate: { type: Date, required: true },
+    autoRenewed: { type: Boolean, default: false },
+    renewedBy: { type: mongoose_1.Schema.Types.ObjectId },
+    notes: { type: String },
+}, { _id: false });
 const productSchema = new mongoose_1.Schema({
     customerId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Customer", required: true },
     adminId: { type: mongoose_1.Schema.Types.ObjectId, ref: "AdminUser", required: true },
@@ -46,6 +52,7 @@ const productSchema = new mongoose_1.Schema({
     autoUpdated: { type: Boolean, default: false },
     updatedBy: { type: mongoose_1.Schema.Types.ObjectId },
     renewalCancelled: { type: Boolean, default: false },
+    renewalHistory: [renewalHistorySchema],
 }, { timestamps: true });
 // Compound index to optimize queries by admin, renewal date, and product detail
 productSchema.index({ adminId: 1, renewalDate: 1, productDetailId: 1 });
