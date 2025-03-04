@@ -34,42 +34,16 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const TaskSchema = new mongoose_1.Schema({
-    title: { type: String, required: true },
-    description: { type: String, required: true },
-    assignedBy: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "AdminUser",
-        required: true,
-    },
-    // assignedTo: { type: Schema.Types.ObjectId, ref: "StaffUser", required: true },
-    assignedTo: [
-        {
-            staffUserId: {
-                type: mongoose_1.Schema.Types.ObjectId,
-                ref: "StaffUser",
-                required: true,
-            },
-            userTaskStatus: {
-                type: String,
-                enum: ["Pending", "InProgress", "Completed"],
-                default: "Pending",
-            },
-            startAt: { type: Date },
-            completedAt: { type: Date },
-            isRemove: { type: Boolean, default: false },
-            remark: { type: String },
-        },
-    ], // Array of assigned user,
-    deadline: { type: Date, required: true },
+const TaskUserSchema = new mongoose_1.Schema({
+    taskId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Task", required: true },
+    userId: { type: mongoose_1.Schema.Types.ObjectId, ref: "StaffUser", required: true },
     status: {
         type: String,
         enum: ["Pending", "InProgress", "Completed"],
         default: "Pending",
     },
     isGroupTask: { type: Boolean, default: false },
-    progressAt: { type: Date }, // Timestamp when moved to "InProgress"
-    completedAt: { type: Date }, // Timestamp when moved to "Completed"
-}, { timestamps: true } // Automatically adds createdAt and updatedAt
-);
-exports.default = mongoose_1.default.model("Task", TaskSchema);
+    startAt: { type: Date },
+    completedAt: { type: Date },
+}, { timestamps: true });
+exports.default = mongoose_1.default.model("TaskUser", TaskUserSchema);
