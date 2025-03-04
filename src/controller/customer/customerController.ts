@@ -606,8 +606,8 @@ export const getProductRenewals = async (
 
     // Parse query parameters
     const period = (req.query.period as string) || "thisWeek"; // e.g. "thisWeek", "in15Days", "thisMonth", "nextMonth", "custom"
-    const customStart = req.query.start as string;
-    const customEnd = req.query.end as string;
+    const customStart = req.query.startDate as string;
+    const customEnd = req.query.endDate as string;
     const productFilter = req.query.product as string; // filter by productDetailId
     const referenceFilter = req.query.reference as string; // filter by customer's reference (name or contact)
     const page = parseInt(req.query.page as string) || 1;
@@ -615,6 +615,8 @@ export const getProductRenewals = async (
     const skip = (page - 1) * limit;
   
     // console.log("--->",period)
+    // console.log("customStart--->",customStart)
+    // console.log("customEnd--->",customEnd)
     // Determine the date range based on the requested period
     let startDate: Date, endDate: Date;
     const now = new Date();
